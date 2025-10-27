@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistem Tracking Senpi</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #dc2626, #b91c1c);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .login-header h1 {
+            color: #dc2626;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .login-header p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        .login-type-selector {
+            display: flex;
+            margin-bottom: 2rem;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #e5e5e5;
+            background: #f8fafc;
+        }
+
+        .type-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .type-btn.active {
+            background: #dc2626;
+            color: white;
+        }
+
+        .type-btn:hover:not(.active) {
+            background: #e5e5e5;
+        }
+
+        .login-form {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .login-form.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.75rem;
+            color: #374151;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .input-group input[type="text"], 
+        .input-group input[type="password"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e5e5e5;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #dc2626;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .login-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .login-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(220, 38, 38, 0.3);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            display: none;
+            border-left: 4px solid #dc2626;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .loading-text {
+            text-align: center;
+            color: #64748b;
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .system-info {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .system-info i {
+            margin-right: 8px;
+        }
+
+        .success-message {
+            background: #dcfce7;
+            color: #16a34a;
+            padding: 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            display: none;
+            border-left: 4px solid #16a34a;
+            animation: slideIn 0.3s ease;
+        }
+
+        .permission-notice {
+            background: #fffbeb;
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .permission-notice i {
+            color: #d97706;
+            margin-right: 8px;
+        }
+
+        .permission-notice strong {
+            color: #92400e;
+        }
+
+        .permission-notice p {
+            margin: 8px 0 0 0;
+            color: #92400e;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1><i class="fas fa-shield-alt"></i> SISTEM TRACKING SENPI</h1>
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span id="errorText"></span>
+        </div>
+
+        <div class="success-message" id="successMessage">
+            <i class="fas fa-check-circle"></i>
+            <span id="successText"></span>
+        </div>
+        
+        <div class="login-type-selector">
+            <button class="type-btn active" data-type="anggota">
+                <i class="fas fa-user"></i> ANGGOTA
+            </button>
+            <button class="type-btn" data-type="admin">
+                <i class="fas fa-crown"></i> ADMIN
+            </button>
+        </div>
+        
+        <form class="login-form active" id="anggotaForm">
+            <div class="permission-notice">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>WAJIB IZINKAN AKSES LOKASI!</strong>
+                <p>Sistem membutuhkan akses lokasi untuk keamanan. Klik "ALLOW/IZINKAN" saat browser meminta izin.</p>
+            </div>
+
+            <div class="input-group">
+                <label for="nrp"><i class="fas fa-id-card"></i> NOMOR REGISTRASI PERSONEL (NRP)</label>
+                <input type="text" id="nrp" placeholder="Contoh: 67050063" required maxlength="8">
+            </div>
+
+            <button type="submit" class="login-btn" id="anggotaLoginBtn">
+                <i class="fas fa-sign-in-alt"></i> MASUK SEBAGAI ANGGOTA
+            </button>
+        </form>
+        
+        <form class="login-form" id="adminForm">
+            <div class="input-group">
+                <label for="adminNrp"><i class="fas fa-id-card"></i> NRP ADMIN</label>
+                <input type="text" id="adminNrp" placeholder="Masukkan NRP Admin" required>
+            </div>
+            <div class="input-group">
+                <label for="adminPassword"><i class="fas fa-lock"></i> PASSWORD</label>
+                <input type="password" id="adminPassword" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="login-btn" id="adminLoginBtn">
+                <i class="fas fa-sign-in-alt"></i> MASUK SEBAGAI ADMIN
+            </button>
+        </form>
+
+        <div class="loading-text" id="loadingIndicator">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span id="loadingText">Memvalidasi kredensial...</span>
+        </div>
+
+        <div class="system-info">
+            <i class="fas fa-info-circle"></i> 
+            Sistem Terintegrasi Database Logistik
+        </div>
+    </div>
+
+    <script>
+        let isLoading = false;
+        let localData = null;
+
+        // DOM Elements
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        const successMessage = document.getElementById('successMessage');
+        const successText = document.getElementById('successText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingText = document.getElementById('loadingText');
+        const anggotaLoginBtn = document.getElementById('anggotaLoginBtn');
+        const adminLoginBtn = document.getElementById('adminLoginBtn');
+
+        // ✅ FORCED LOCATION PERMISSION FUNCTION
+        function requestLocationPermission() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    showError('Browser tidak mendukung geolocation! Gunakan browser modern.');
+                    resolve(false);
+                    return;
+                }
+
+                loadingText.textContent = 'Meminta akses lokasi...';
+                
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        console.log('📍 Location access GRANTED');
+                        
+                        const locationData = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        localStorage.setItem('lastKnownLocation', JSON.stringify(locationData));
+                        resolve(true);
+                    },
+                    (error) => {
+                        console.log('📍 Location access DENIED:', error);
+                        
+                        let errorMessage = "Akses lokasi ditolak!";
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "IZINKAN AKSES LOKASI UNTUK MELANJUTKAN! Sistem akan reload otomatis.";
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 3000);
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "Informasi lokasi tidak tersedia. Pastikan GPS aktif.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "Request lokasi timeout. Coba lagi.";
+                                break;
+                        }
+                        
+                        showError(errorMessage);
+                        resolve(false);
+                    },
+                    options
+                );
+            });
+        }
+
+        // Fungsi utilitas untuk memuat data lokal atau dari localStorage
+        async function loadLocalData() {
+            try {
+                let result;
+                const tempUsersData = localStorage.getItem('temp_users_data');
+
+                if (tempUsersData) {
+                    const response = await fetch('data.json');
+                    const initialData = await response.json();
+                    result = {
+                        users: JSON.parse(tempUsersData),
+                        admin: initialData.admin
+                    };
+                } else {
+                    const response = await fetch('data.json');
+                    if (!response.ok) {
+                        throw new Error(`Gagal memuat data.json: ${response.status}`);
+                    }
+                    result = await response.json();
+                }
+                
+                localData = result;
+                return true;
+            } catch (error) {
+                console.error('❌ Error memuat data lokal:', error);
+                showError('Gagal memuat data sistem: Pastikan file data.json tersedia.');
+                return false;
+            }
+        }
+        
+        // Show loading state
+        function showLoading(isLoggingIn, message) {
+            isLoading = true;
+            loadingIndicator.style.display = 'block';
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+            
+            if (isLoggingIn) {
+                anggotaLoginBtn.disabled = true;
+                adminLoginBtn.disabled = true;
+                loadingText.textContent = message || 'Memvalidasi kredensial...';
+            }
+        }
+
+        // Hide loading state
+        function hideLoading() {
+            isLoading = false;
+            loadingIndicator.style.display = 'none';
+            anggotaLoginBtn.disabled = false;
+            adminLoginBtn.disabled = false;
+        }
+
+        // Show error message
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            successText.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        // Hide all messages
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        // Login type selection
+        function initializeLoginTypeSelector() {
+            document.querySelectorAll('.type-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (isLoading) return;
+                    
+                    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    document.querySelectorAll('.login-form').forEach(form => form.classList.remove('active'));
+                    document.getElementById(this.dataset.type + 'Form').classList.add('active');
+                    
+                    hideMessages();
+                });
+            });
+        }
+
+        // Handle anggota login DENGAN FORCED LOCATION
+        function initializeAnggotaLogin() {
+            document.getElementById('anggotaForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (isLoading || !localData) return;
+
+                const nrp = document.getElementById('nrp').value.trim();
+                
+                if (!nrp) {
+                    showError('NRP harus diisi');
+                    return;
+                }
+
+                if (nrp.length !== 8) {
+                    showError('NRP harus 8 digit');
+                    return;
+                }
+                
+                showLoading(true, 'Memvalidasi kredensial...');
+                
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 500)); 
+
+                    const user = localData.users[nrp];
+
+                    if (user) {
+                        // ✅ WAJIB LOCATION PERMISSION
+                        showLoading(true, 'Meminta akses lokasi...');
+                        const locationPermission = await requestLocationPermission();
+                        
+                        if (!locationPermission) {
+                            showError('AKSES LOKASI WAJIB DIIZINKAN! Sistem akan reload...');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3000);
+                            hideLoading();
+                            return;
+                        }
+
+                        console.log('✅ Login berhasil untuk:', user.nama);
+                        showSuccess(`Login berhasil! Selamat datang ${user.nama}.`);
+                        
+                        // Simpan data user
+                        localStorage.setItem('currentUser', JSON.stringify({
+                            nrp: nrp,
+                            nama: user.nama,
+                            pangkat: user.pangkat,
+                            kesatuan: user.kesatuan,
+                            location_access: true,
+                            login_time: new Date().toISOString()
+                        }));
+
+                        // Redirect ke dashboard
+                        setTimeout(() => {
+                            window.location.href = `dashboard-anggota.html?nrp=${nrp}`; 
+                        }, 1500);
+                        
+                    } else {
+                        showError('NRP tidak terdaftar dalam sistem');
+                        console.log('❌ NRP tidak ditemukan:', nrp);
+                    }
+                    
+                } catch (error) {
+                    console.error('Login error:', error);
+                    showError('Terjadi kesalahan saat validasi data.');
+                } finally {
+                    hideLoading();
+                }
+            });
+        }
+
+        // Handle admin login (TANPA LOCATION REQUIREMENT)
+        function initializeAdminLogin() {
+            document.getElementById('adminForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (isLoading || !localData) return;
+                
+                const nrp = document.getElementById('adminNrp').value;
+                const password = document.getElementById('adminPassword').value;
+                
+                if (!nrp || !password) {
+                    showError('NRP dan password harus diisi');
+                    return;
+                }
+                
+                showLoading(true);
+
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 500)); 
+
+                    const adminData = localData.admin;
+
+                    if (nrp === adminData.nrp && password === adminData.password) {
+                        console.log('✅ Login admin berhasil');
+                        showSuccess('Login admin berhasil! Mengarahkan ke dashboard...');
+                        
+                        // Set session admin
+                        localStorage.setItem('isAdmin', 'true');
+                        localStorage.setItem('adminNrp', nrp);
+                        
+                        setTimeout(() => {
+                            window.location.href = `dashboard-admin.html`;
+                        }, 1000);
+                        
+                    } else {
+                        showError('Login admin gagal. Periksa NRP dan password.');
+                    }
+                    
+                } catch (error) {
+                    console.error('Login error:', error);
+                    showError('Terjadi kesalahan saat validasi data.');
+                } finally {
+                    hideLoading();
+                }
+            });
+        }
+
+        // Input validation
+        function initializeInputValidation() {
+            document.getElementById('nrp').addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+            
+            document.getElementById('adminNrp').addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+
+            document.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const activeForm = document.querySelector('.login-form.active');
+                    if (activeForm) {
+                        activeForm.dispatchEvent(new Event('submit'));
+                    }
+                }
+            });
+        }
+
+        // Check if user already logged in
+        function checkExistingSession() {
+            const currentUser = localStorage.getItem('currentUser');
+            const isAdmin = localStorage.getItem('isAdmin');
+            
+            if (currentUser) {
+                const user = JSON.parse(currentUser);
+                showSuccess(`Session aktif ditemukan. Selamat datang kembali ${user.nama}`);
+                
+                setTimeout(() => {
+                    window.location.href = `dashboard-anggota.html?nrp=${user.nrp}`;
+                }, 2000);
+            } else if (isAdmin) {
+                showSuccess('Session admin aktif. Mengarahkan...');
+                
+                setTimeout(() => {
+                    window.location.href = `dashboard-admin.html`;
+                }, 2000);
+            }
+        }
+
+        async function initializeApp() {
+            console.log('🚀 Initializing Sistem Tracking Senpi...');
+            
+            // Cek browser support geolocation
+            if (!navigator.geolocation) {
+                showError('Browser Anda tidak mendukung fitur lokasi. Gunakan browser modern seperti Chrome atau Firefox.');
+                return;
+            }
+            
+            const isConnected = await loadLocalData();
+            if (!isConnected) {
+                return; 
+            }
+            
+            initializeLoginTypeSelector();
+            initializeAnggotaLogin();
+            initializeAdminLogin();
+            initializeInputValidation();
+            
+            checkExistingSession();
+            
+            console.log('✅ App initialized successfully');
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>

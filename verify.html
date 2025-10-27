@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifikasi Data Senpi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #dc2626;
+        }
+        
+        h1 {
+            color: #dc2626;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+        
+        .data-card {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            text-align: left;
+            border-left: 4px solid #dc2626;
+        }
+        
+        .data-item {
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        
+        .data-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .label {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .value {
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 1rem;
+        }
+        
+        .status-aktif { color: #16a34a; font-weight: 600; }
+        .status-expired { color: #dc2626; font-weight: 600; }
+        .status-pending { color: #d97706; font-weight: 600; }
+        
+        .verification-badge {
+            background: #dcfce7;
+            color: #16a34a;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border: 2px solid #bbf7d0;
+        }
+        
+        .warning-badge {
+            background: #fef3c7;
+            color: #d97706;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border: 2px solid #fde68a;
+        }
+        
+        .footer {
+            margin-top: 2rem;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            display: none;
+            margin: 2rem 0;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        
+        <h1>VERIFIKASI DATA SENPI</h1>
+        <p>SISTEM TRACKING SENPI</p>
+        
+        <div class="loading" id="loading">
+            <i class="fas fa-spinner fa-spin"></i> Memuat data...
+        </div>
+        
+        <div class="error-message" id="errorMessage">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span id="errorText"></span>
+        </div>
+        
+        <div id="verificationResult">
+            <!-- Data akan dimuat di sini -->
+        </div>
+        
+        <div class="footer">
+            <i class="fas fa-qrcode"></i> Scan QR Code untuk verifikasi cepat<br>
+            <small>© Sistem Terintegrasi</small>
+        </div>
+    </div>
+
+    <script>
+        // Ambil parameter dari URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const nrp = urlParams.get('nrp');
+        const senpi = urlParams.get('senpi');
+        
+        async function loadVerificationData() {
+            if (!nrp || !senpi) {
+                showError('Parameter verifikasi tidak valid');
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                // Load data dari localStorage
+                const usersData = JSON.parse(localStorage.getItem('temp_users_data'));
+                if (!usersData) {
+                    throw new Error('Data sistem tidak ditemukan');
+                }
+                
+                const user = usersData[nrp];
+                if (!user) {
+                    throw new Error('Data personel tidak ditemukan');
+                }
+                
+                const senpiData = user.senpi.find(s => s.nomor_seri === senpi);
+                if (!senpiData) {
+                    throw new Error('Data senpi tidak ditemukan');
+                }
+                
+                displayVerificationResult(user, senpiData, nrp);
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        function displayVerificationResult(user, senpi, nrp) {
+            const resultDiv = document.getElementById('verificationResult');
+            
+            // Tentukan status
+            let status = 'PENDING';
+            let statusClass = 'status-pending';
+            let statusBadge = '<div class="warning-badge"><i class="fas fa-clock"></i> MENUNGGU INPUT DATA SIMSA</div>';
+            
+            if (senpi.tanggal_terbit_simsa) {
+                if (senpi.tanggal_expired) {
+                    const expiryDate = new Date(senpi.tanggal_expired);
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    
+                    if (expiryDate < today) {
+                        status = 'EXPIRED';
+                        statusClass = 'status-expired';
+                        statusBadge = '<div class="warning-badge"><i class="fas fa-exclamation-triangle"></i> SIMSA SUDAH KADALUARSA</div>';
+                    } else {
+                        status = 'AKTIF';
+                        statusClass = 'status-aktif';
+                        statusBadge = '<div class="verification-badge"><i class="fas fa-check-circle"></i> TERVERIFIKASI AKTIF</div>';
+                    }
+                } else {
+                    status = 'AKTIF';
+                    statusClass = 'status-aktif';
+                    statusBadge = '<div class="verification-badge"><i class="fas fa-check-circle"></i> TERVERIFIKASI AKTIF</div>';
+                }
+            }
+            
+            const html = `
+                ${statusBadge}
+                
+                <div class="data-card">
+                    <div class="data-item">
+                        <div class="label">NRP</div>
+                        <div class="value">${nrp}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">NAMA LENGKAP</div>
+                        <div class="value">${user.nama}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">PANGKAT</div>
+                        <div class="value">${user.pangkat}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">KESATUAN</div>
+                        <div class="value">${user.kesatuan}</div>
+                    </div>
+                </div>
+                
+                <div class="data-card">
+                    <div class="data-item">
+                        <div class="label">NOMOR SERI SENPI</div>
+                        <div class="value">${senpi.nomor_seri}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">JENIS SENPI</div>
+                        <div class="value">${senpi.jenis}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">KETERANGAN</div>
+                        <div class="value">${senpi.keterangan}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">TANGGAL TERBIT SIMSA</div>
+                        <div class="value">${senpi.tanggal_terbit_simsa || '-'}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">TANGGAL EXPIRED SIMSA</div>
+                        <div class="value">${senpi.tanggal_expired || '-'}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">STATUS</div>
+                        <div class="value ${statusClass}">${status}</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1rem; color: #64748b; font-size: 0.9rem;">
+                    <i class="fas fa-clock"></i> Data diperbarui: ${new Date().toLocaleString()}
+                </div>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('verificationResult').innerHTML = '';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('verificationResult').innerHTML = '';
+        }
+        
+        // Auto load saat page ready
+        document.addEventListener('DOMContentLoaded', loadVerificationData);
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+</body>
+</html>

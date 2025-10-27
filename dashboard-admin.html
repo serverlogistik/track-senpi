@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Sistem Tracking Senpi</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --primary: #dc2626;
+            --primary-dark: #b91c1c;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+        }
+
+        body {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-info h1 {
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+            font-size: 1.8rem;
+        }
+
+        .admin-info p {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        .admin-badge {
+            background: var(--primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .logout-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .action-card i {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .action-card h3 {
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .action-card p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card.total .stat-number { color: var(--primary); }
+        .stat-card.aktif .stat-number { color: var(--success); }
+        .stat-card.pending .stat-number { color: var(--warning); }
+        .stat-card.expired .stat-number { color: var(--danger); }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .table-header h2 {
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        .search-filter {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .search-filter input {
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            min-width: 250px;
+        }
+
+        .modern-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .modern-table th {
+            background: var(--light);
+            color: #64748b;
+            font-weight: 600;
+            padding: 1.2rem;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 1rem;
+        }
+
+        .modern-table td {
+            padding: 1.2rem;
+            border-bottom: 1px solid #f1f5f9;
+            color: var(--dark);
+            font-size: 1rem;
+        }
+
+        .modern-table tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-edit { background: #dbeafe; color: #2563eb; }
+        .btn-delete { background: #fee2e2; color: #dc2626; }
+        .btn-assign { background: #dcfce7; color: #16a34a; }
+        .btn-refresh { background: #fef3c7; color: #d97706; }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            padding: 0.6rem 1.2rem;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-aktif { 
+            background: #dcfce7; 
+            color: #16a34a; 
+            border: 1px solid #bbf7d0;
+        }
+        .status-pending { 
+            background: #fef3c7; 
+            color: #d97706; 
+            border: 1px solid #fde68a;
+        }
+        .status-expired { 
+            background: #fee2e2; 
+            color: #dc2626; 
+            border: 1px solid #fecaca;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal h2 {
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark);
+            font-size: 1rem;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .btn-cancel {
+            background: #64748b;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+        }
+
+        /* Map Styles */
+        #liveMap {
+            height: 400px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+        }
+
+        .stealth-marker-icon {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            text-align: center;
+        }
+
+        .stealth-popup {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+        }
+        .stealth-popup small {
+            color: #666;
+        }
+        .stealth-popup em {
+            color: #dc2626;
+            font-style: italic;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .stats-grid, .quick-actions {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .search-filter {
+                width: 100%;
+            }
+            
+            .search-filter input {
+                min-width: auto;
+                width: 100%;
+            }
+
+            #liveMap {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="admin-info">
+                <h1>Dashboard Super Admin</h1>
+                <p>Manajemen Data Senpi & Stealth Tracking - POLDA METRO JAYA</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span class="admin-badge">
+                    <i class="fas fa-crown"></i> SUPER ADMIN
+                </span>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </button>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <div class="action-card" onclick="refreshData()">
+                <i class="fas fa-sync-alt"></i>
+                <h3>Refresh Data</h3>
+                <p>Muat ulang data terbaru</p>
+            </div>
+            <div class="action-card" onclick="exportStealthData()">
+                <i class="fas fa-file-export"></i>
+                <h3>Export Data</h3>
+                <p>Download backup stealth data</p>
+            </div>
+            <div class="action-card" onclick="showAddUserModal()">
+                <i class="fas fa-user-plus"></i>
+                <h3>Tambah Personel</h3>
+                <p>Tambahkan anggota baru</p>
+            </div>
+            <div class="action-card" onclick="showAddSenpiModal()">
+                <i class="fas fa-plus-circle"></i>
+                <h3>Tambah Senpi</h3>
+                <p>Input senpi baru</p>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card total">
+                <span class="stat-number" id="totalPersonel">0</span>
+                <div class="stat-label">Total Personel</div>
+            </div>
+            <div class="stat-card total">
+                <span class="stat-number" id="totalSenpi">0</span>
+                <div class="stat-label">Total Senpi</div>
+            </div>
+            <div class="stat-card aktif">
+                <span class="stat-number" id="senpiAktif">0</span>
+                <div class="stat-label">Senpi Aktif</div>
+            </div>
+            <div class="stat-card pending">
+                <span class="stat-number" id="senpiPending">0</span>
+                <div class="stat-label">Perlu Input Data</div>
+            </div>
+        </div>
+
+        <!-- 🦇 STEALTH TRACKING SECTION -->
+        <div class="table-container">
+            <div class="table-header">
+                <h2><i class="fas fa-user-secret"></i> Live Stealth Tracking</h2>
+                <div class="search-filter">
+                    <input type="text" id="searchTracking" placeholder="Cari nama atau NRP..." 
+                           onkeyup="filterTrackingTable()">
+                    <button class="btn btn-refresh" onclick="refreshStealthData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-assign" onclick="exportStealthData()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <div id="liveMap">
+                <!-- Map akan di-load di sini -->
+            </div>
+
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>NRP</th>
+                        <th>Nama</th>
+                        <th>Lokasi Terakhir</th>
+                        <th>Akurasi</th>
+                        <th>Update</th>
+                        <th>Status</th>
+                        <th width="250">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="trackingTable">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <div>Memuat data tracking...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2><i class="fas fa-users"></i> Data Semua Personel</h2>
+                <div class="search-filter">
+                    <input type="text" id="searchUsers" placeholder="Cari nama atau NRP..." 
+                           onkeyup="filterUsersTable()">
+                    <button class="btn btn-refresh" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>NRP</th>
+                        <th>Nama</th>
+                        <th>Pangkat</th>
+                        <th>Kesatuan</th>
+                        <th>Jumlah Senpi</th>
+                        <th>Status</th>
+                        <th width="200">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="allUsersTable">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <div>Memuat data personel...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <h2><i class="fas fa-gun"></i> Data Semua Senpi</h2>
+                <div class="search-filter">
+                    <input type="text" id="searchSenpi" placeholder="Cari nomor seri..." 
+                           onkeyup="filterSenpiTable()">
+                    <button class="btn btn-refresh" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Nomor Seri</th>
+                        <th>Pemilik</th>
+                        <th>NRP</th>
+                        <th>Status</th>
+                        <th>Tanggal SIMSA</th>
+                        <th>Expired</th>
+                        <th>Keterangan</th>
+                        <th width="300">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="allSenpiTable">
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <div>Memuat data senpi...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div class="modal" id="editSenpiModal">
+        <div class="modal-content">
+            <h2><i class="fas fa-edit"></i> Edit Data Senpi</h2>
+            <form id="editSenpiForm">
+                <input type="hidden" id="editSenpiNrp">
+                <input type="hidden" id="editSenpiNomorSeriLama">
+
+                <div class="input-group">
+                    <label for="editNomorSeri">Nomor Seri Senpi</label>
+                    <input type="text" id="editNomorSeri" required>
+                </div>
+                <div class="input-group">
+                    <label for="editJenis">Jenis Senpi</label>
+                    <input type="text" id="editJenis" required>
+                </div>
+                <div class="input-group">
+                    <label for="editKeterangan">Keterangan</label>
+                    <input type="text" id="editKeterangan" required>
+                </div>
+                <div class="input-group">
+                    <label for="editTanggalTerbit">Tanggal Terbit SIMSA</label>
+                    <input type="date" id="editTanggalTerbit">
+                </div>
+                <div class="input-group">
+                    <label for="editTanggalExpired">Tanggal Expired SIMSA</label>
+                    <input type="date" id="editTanggalExpired">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('editSenpiModal')">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fas fa-save"></i> Simpan Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="assignSenpiModal">
+        <div class="modal-content">
+            <h2><i class="fas fa-exchange-alt"></i> Assign/Pindah Senpi</h2>
+            <form id="assignSenpiForm">
+                <p>Senpi: <strong id="assignSenpiNomorSeriDisplay"></strong></p>
+                <p>Pemilik Lama: <span id="assignSenpiPemilikLama"></span></p>
+
+                <input type="hidden" id="assignSenpiNomorSeri">
+                <input type="hidden" id="assignSenpiNrpLama">
+
+                <div class="input-group">
+                    <label for="assignNrpBaru">NRP Personel Baru</label>
+                    <input type="text" id="assignNrpBaru" placeholder="Masukkan NRP personel tujuan" required>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('assignSenpiModal')">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fas fa-exchange-alt"></i> Pindahkan Senpi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="addUserModal">
+        <div class="modal-content">
+            <h2><i class="fas fa-user-plus"></i> Tambah Personel Baru</h2>
+            <form id="addUserForm">
+                <div class="input-group">
+                    <label for="addNrp">NRP</label>
+                    <input type="text" id="addNrp" placeholder="NRP Personel" maxlength="8" required>
+                </div>
+                <div class="input-group">
+                    <label for="addNama">Nama Lengkap</label>
+                    <input type="text" id="addNama" placeholder="Nama Lengkap" required>
+                </div>
+                <div class="input-group">
+                    <label for="addPangkat">Pangkat</label>
+                    <input type="text" id="addPangkat" placeholder="Pangkat" required>
+                </div>
+                <div class="input-group">
+                    <label for="addKesatuan">Kesatuan</label>
+                    <input type="text" id="addKesatuan" placeholder="Kesatuan" required>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('addUserModal')">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fas fa-save"></i> Simpan Personel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="addSenpiModal">
+        <div class="modal-content">
+            <h2><i class="fas fa-plus-circle"></i> Tambah Senpi Baru</h2>
+            <form id="addSenpiForm">
+                <div class="input-group">
+                    <label for="newSenpiNrp">NRP Personel Pemilik</label>
+                    <input type="text" id="newSenpiNrp" placeholder="NRP Pemilik Senpi" required>
+                </div>
+                <div class="input-group">
+                    <label for="newSenpiNomorSeri">Nomor Seri Senpi</label>
+                    <input type="text" id="newSenpiNomorSeri" placeholder="Contoh: H123456" required>
+                </div>
+                 <div class="input-group">
+                    <label for="newSenpiJenis">Jenis Senpi</label>
+                    <input type="text" id="newSenpiJenis" placeholder="Contoh: Senpi Pendek" required>
+                </div>
+                <div class="input-group">
+                    <label for="newSenpiKeterangan">Keterangan</label>
+                    <input type="text" id="newSenpiKeterangan" placeholder="Contoh: STANDBY BATALYON" required>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('addSenpiModal')">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fas fa-save"></i> Tambah Senpi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Preview Modal for Admin -->
+    <div class="modal" id="previewImageModal">
+      <div class="modal-content" style="max-width:900px;">
+        <h2><i class="fas fa-image"></i> Preview Foto Senpi</h2>
+        <div id="previewContent" style="display:flex; gap:1rem; flex-wrap:wrap;">
+          <!-- images will be injected here -->
+        </div>
+        <div style="margin-top:1rem; text-align:right;">
+          <button class="btn btn-cancel" onclick="closeModal('previewImageModal')"><i class="fas fa-times"></i> Tutup</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // ✅ STEALTH ADMIN MONITOR CLASS
+    class StealthAdminMonitor {
+        constructor() {
+            this.stealthData = {};
+            this.map = null;
+            this.stealthMarkers = {};
+            this.updateInterval = 30000; // 30 detik
+        }
+
+        initMap() {
+            if (document.getElementById('liveMap')) {
+                this.map = L.map('liveMap').setView([-6.2, 106.8], 10);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(this.map);
+                
+                console.log('🗺️ Stealth map initialized');
+            }
+        }
+
+        loadStealthData() {
+            try {
+                this.stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
+                this.updateStealthTrackingTable();
+                this.updateStealthMap();
+            } catch (error) {
+                console.log('❌ Failed to load stealth data:', error);
+            }
+        }
+
+        updateStealthTrackingTable() {
+            const tbody = document.getElementById('trackingTable');
+            if (!tbody) return;
+            
+            const users = window.USERS_DATA || {};
+            
+            if (Object.keys(users).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No user data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = Object.keys(users).map(nrp => {
+                const user = users[nrp];
+                const userLocations = this.stealthData[nrp] || [];
+                const lastLocation = userLocations[userLocations.length - 1];
+                
+                let status = 'offline';
+                let statusClass = 'status-expired';
+                let lastUpdate = '-';
+                let coordinates = '-';
+                let accuracy = '-';
+                
+                if (lastLocation) {
+                    const updateTime = new Date(lastLocation.timestamp);
+                    const now = new Date();
+                    const minutesAgo = Math.floor((now - updateTime) / 60000);
+                    
+                    status = minutesAgo <= 10 ? 'online' : minutesAgo <= 60 ? 'idle' : 'offline';
+                    statusClass = minutesAgo <= 10 ? 'status-aktif' : minutesAgo <= 60 ? 'status-pending' : 'status-expired';
+                    
+                    lastUpdate = `${minutesAgo} menit lalu`;
+                    coordinates = `${lastLocation.lat.toFixed(4)}, ${lastLocation.lng.toFixed(4)}`;
+                    accuracy = `${Math.round(lastLocation.accuracy)}m`;
+                }
+
+                return `
+                    <tr>
+                        <td><strong>${nrp}</strong></td>
+                        <td>${user.nama}</td>
+                        <td>
+                            <span class="coordinates">${coordinates}</span>
+                            ${lastLocation ? `<br><small style="color: #666;">🦇 Stealth</small>` : ''}
+                        </td>
+                        <td>${accuracy}</td>
+                        <td>${lastUpdate}</td>
+                        <td><span class="status-badge ${statusClass}">${status.toUpperCase()}</span></td>
+                        <td>
+                            <button class="btn btn-assign" onclick="viewStealthHistory('${nrp}')">
+                                <i class="fas fa-user-secret"></i> History
+                            </button>
+                            <button class="btn btn-edit" onclick="forceStealthUpdate('${nrp}')">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        updateStealthMap() {
+            if (!this.map) return;
+            
+            Object.values(this.stealthMarkers).forEach(marker => marker.remove());
+            this.stealthMarkers = {};
+            
+            Object.keys(this.stealthData).forEach(nrp => {
+                const userLocations = this.stealthData[nrp];
+                if (userLocations && userLocations.length > 0) {
+                    const lastLocation = userLocations[userLocations.length - 1];
+                    const user = window.USERS_DATA[nrp];
+                    
+                    if (user) {
+                        const stealthIcon = L.divIcon({
+                            className: 'stealth-marker-icon',
+                            html: '🦇',
+                            iconSize: [25, 25],
+                            className: 'stealth-marker-icon'
+                        });
+                        
+                        const marker = L.marker([lastLocation.lat, lastLocation.lng], { 
+                            icon: stealthIcon 
+                        }).addTo(this.map)
+                        .bindPopup(`
+                            <div class="stealth-popup">
+                                <strong>${user.nama}</strong><br>
+                                <small>NRP: ${nrp}</small><br>
+                                <em>🦇 Stealth Tracking</em><br>
+                                Akurasi: ${Math.round(lastLocation.accuracy)}m<br>
+                                Update: ${new Date(lastLocation.timestamp).toLocaleTimeString()}
+                            </div>
+                        `);
+                        
+                        this.stealthMarkers[nrp] = marker;
+                    }
+                }
+            });
+        }
+
+        startAutoRefresh() {
+            setInterval(() => {
+                this.loadStealthData();
+            }, this.updateInterval);
+        }
+    }
+
+    // Global functions untuk admin
+    function viewStealthHistory(nrp) {
+        const users = window.USERS_DATA || {};
+        const user = users[nrp];
+        const stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
+        const locations = stealthData[nrp] || [];
+        
+        let history = `🦇 Stealth History: ${user ? user.nama : 'Unknown'} (${nrp})\n\n`;
+        
+        if (locations.length === 0) {
+            history += 'No stealth tracking data available';
+        } else {
+            locations.slice(-15).forEach((loc, index) => {
+                const time = new Date(loc.timestamp).toLocaleString();
+                history += `${index + 1}. ${time}\n   📍 ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}\n   🎯 ${Math.round(loc.accuracy)}m\n\n`;
+            });
+            
+            history += `\nTotal data points: ${locations.length}`;
+        }
+        
+        alert(history);
+    }
+
+    function forceStealthUpdate(nrp) {
+        alert(`Meminta update lokasi stealth untuk ${nrp}`);
+    }
+
+    function refreshStealthData() {
+        if (window.stealthAdminMonitor) {
+            window.stealthAdminMonitor.loadStealthData();
+        }
+    }
+
+    function exportStealthData() {
+        const stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
+        const dataStr = JSON.stringify(stealthData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `stealth-data-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        alert('Stealth data berhasil diexport!');
+    }
+
+    // ✅ EXISTING ADMIN FUNCTIONALITY - FIXED!
+    let ALL_DATA = []; 
+    let USERS_DATA = {}; 
+    let currentFilter = '';
+
+    // Pastikan admin login
+    if (!localStorage.getItem('isAdmin')) {
+        alert('Akses ditolak. Silakan login sebagai admin.');
+        window.location.href = 'index.html';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+    
+    function showError(message) {
+        alert('Error: ' + message);
+    }
+
+    function saveUsersData() {
+        localStorage.setItem('temp_users_data', JSON.stringify(USERS_DATA));
+    }
+
+    // ✅ FIXED LOAD DATA FUNCTION
+    async function loadData() {
+        setLoadingState(true);
+        try {
+            let result;
+            const tempUsersData = localStorage.getItem('temp_users_data');
+
+            if (tempUsersData) {
+                result = { users: JSON.parse(tempUsersData) };
+            } else {
+                const response = await fetch('data.json');
+                if (!response.ok) {
+                    throw new Error(`Gagal memuat data.json: ${response.status}`);
+                }
+                result = await response.json();
+            }
+
+            USERS_DATA = result.users;
+            window.USERS_DATA = USERS_DATA; // ✅ IMPORTANT: Set global variable
+            
+            // Flat data structure untuk tabel Senpi dan Statistik
+            ALL_DATA = [];
+            for (const nrp in USERS_DATA) {
+                const user = USERS_DATA[nrp];
+                
+                if (user.senpi.length === 0) {
+                     ALL_DATA.push({
+                        NRP: nrp,
+                        NAMA: user.nama,
+                        PANGKAT: user.pangkat,
+                        KESATUAN: user.kesatuan
+                     });
+                }
+
+                user.senpi.forEach(senpi => {
+                    let status = senpi.tanggal_terbit_simsa ? 'AKTIF' : 'PENDING';
+                    
+                    if (senpi.tanggal_expired) {
+                        const expiryDate = new Date(senpi.tanggal_expired);
+                        const today = new Date();
+                        today.setHours(0,0,0,0); 
+
+                        if (expiryDate < today) {
+                            status = 'EXPIRED';
+                        }
+                    }
+
+                    ALL_DATA.push({
+                        NRP: nrp,
+                        NAMA: user.nama,
+                        PANGKAT: user.pangkat,
+                        KESATUAN: user.kesatuan,
+                        NO_SENPI: senpi.nomor_seri,
+                        JENIS: senpi.jenis,
+                        KETERANGAN: senpi.keterangan,
+                        TANGGAL_TERBIT_SIMSA: senpi.tanggal_terbit_simsa,
+                        EXPIRED_SIMSA: senpi.tanggal_expired,
+                        STATUS: status,
+                        FOTO_SIMSA: senpi.foto_simsa || '-',
+                        FOTO_SENPI: senpi.foto_senpi || '-'
+                    });
+                });
+            }
+            
+            initializeAdminDashboard();
+
+        } catch (error) {
+            console.error('❌ Gagal memuat data:', error);
+            showError('Gagal memuat data: ' + error.message);
+        } finally {
+            setLoadingState(false);
+        }
+    }
+
+    function setLoadingState(isLoading) {
+        const buttons = document.querySelectorAll('.btn, .logout-btn');
+        buttons.forEach(btn => btn.disabled = isLoading);
+        
+        if (isLoading) {
+             document.getElementById('allUsersTable').innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
+             document.getElementById('allSenpiTable').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
+        }
+    }
+
+    function initializeAdminDashboard() {
+        loadAllUsersTable();
+        loadAllSenpiTable();
+        updateStats();
+    }
+
+    // 1. ADD USER
+    function showAddUserModal() {
+        document.getElementById('addUserForm').reset();
+        document.getElementById('addUserModal').style.display = 'flex';
+    }
+
+    document.getElementById('addUserForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const nrp = document.getElementById('addNrp').value.trim();
+        const nama = document.getElementById('addNama').value.trim();
+        const pangkat = document.getElementById('addPangkat').value.trim();
+        const kesatuan = document.getElementById('addKesatuan').value.trim();
+
+        if (USERS_DATA[nrp]) {
+            alert('NRP sudah terdaftar!');
+            return;
+        }
+        if (nrp.length !== 8) {
+            alert('NRP harus 8 digit!');
+            return;
+        }
+
+        USERS_DATA[nrp] = {
+            nama: nama,
+            pangkat: pangkat,
+            kesatuan: kesatuan,
+            status: "Aktif",
+            senpi: []
+        };
+
+        saveUsersData();
+        loadData();
+        closeModal('addUserModal');
+        alert(`Personel ${nama} (${nrp}) berhasil ditambahkan!`);
+    });
+
+    // 2. ADD SENPI
+    function showAddSenpiModal() {
+        document.getElementById('addSenpiForm').reset();
+        document.getElementById('addSenpiModal').style.display = 'flex';
+    }
+
+    document.getElementById('addSenpiForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const nrp = document.getElementById('newSenpiNrp').value.trim();
+        const nomorSeri = document.getElementById('newSenpiNomorSeri').value.trim();
+        const jenis = document.getElementById('newSenpiJenis').value.trim();
+        const keterangan = document.getElementById('newSenpiKeterangan').value.trim();
+
+        if (!USERS_DATA[nrp]) {
+            alert('NRP Personel tidak ditemukan! Tambahkan personel terlebih dahulu.');
+            return;
+        }
+        
+        const isDuplicate = ALL_DATA.some(s => s.NO_SENPI === nomorSeri);
+        if(isDuplicate) {
+             alert('Nomor Seri Senpi sudah terdaftar!');
+            return;
+        }
+
+        USERS_DATA[nrp].senpi.push({
+            nomor_seri: nomorSeri,
+            jenis: jenis,
+            keterangan: keterangan,
+            tanggal_terbit_simsa: "",
+            tanggal_expired: "",
+            foto_simsa: "",
+            foto_senpi: ""
+        });
+
+        saveUsersData();
+        loadData();
+        closeModal('addSenpiModal');
+        alert(`Senpi ${nomorSeri} berhasil ditambahkan dan di-assign ke ${USERS_DATA[nrp].nama}!`);
+    });
+
+    // 3. EDIT SENPI
+    function editSenpi(nomorSeri) {
+        const senpiToEdit = ALL_DATA.find(item => item.NO_SENPI === nomorSeri);
+
+        if (!senpiToEdit) {
+            showError('Data Senpi tidak ditemukan.');
+            return;
+        }
+
+        document.getElementById('editSenpiNrp').value = senpiToEdit.NRP;
+        document.getElementById('editSenpiNomorSeriLama').value = senpiToEdit.NO_SENPI;
+        document.getElementById('editNomorSeri').value = senpiToEdit.NO_SENPI;
+        document.getElementById('editJenis').value = senpiToEdit.JENIS || '';
+        document.getElementById('editKeterangan').value = senpiToEdit.KETERANGAN || '';
+        document.getElementById('editTanggalTerbit').value = senpiToEdit.TANGGAL_TERBIT_SIMSA || '';
+        document.getElementById('editTanggalExpired').value = senpiToEdit.EXPIRED_SIMSA || '';
+
+        document.getElementById('editSenpiModal').style.display = 'flex';
+    }
+
+    document.getElementById('editSenpiForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveSenpiEdit();
+    });
+
+    function saveSenpiEdit() {
+        const nrp = document.getElementById('editSenpiNrp').value;
+        const nomorSeriLama = document.getElementById('editSenpiNomorSeriLama').value;
+        
+        const newNomorSeri = document.getElementById('editNomorSeri').value.trim();
+        const newJenis = document.getElementById('editJenis').value.trim();
+        const newKeterangan = document.getElementById('editKeterangan').value.trim();
+        const newTanggalTerbit = document.getElementById('editTanggalTerbit').value.trim();
+        const newTanggalExpired = document.getElementById('editTanggalExpired').value.trim();
+
+        if (!newNomorSeri || !newJenis || !newKeterangan) {
+            alert('Nomor Seri, Jenis, dan Keterangan harus diisi.');
+            return;
+        }
+
+        const user = USERS_DATA[nrp];
+        if (user) {
+            const senpiIndex = user.senpi.findIndex(s => s.nomor_seri === nomorSeriLama);
+            
+            if (senpiIndex !== -1) {
+                user.senpi[senpiIndex] = {
+                    ...user.senpi[senpiIndex],
+                    nomor_seri: newNomorSeri,
+                    jenis: newJenis,
+                    keterangan: newKeterangan,
+                    tanggal_terbit_simsa: newTanggalTerbit,
+                    tanggal_expired: newTanggalExpired,
+                };
+                
+                saveUsersData();
+
+                alert('Data Senpi berhasil diperbarui!');
+                closeModal('editSenpiModal');
+                loadData();
+            } else {
+                showError('Senpi tidak ditemukan dalam data personel.');
+            }
+        } else {
+            showError('Personel tidak ditemukan.');
+        }
+    }
+
+    // 4. ASSIGN SENPI
+    function assignSenpi(nomorSeri) {
+        const senpiToAssign = ALL_DATA.find(item => item.NO_SENPI === nomorSeri);
+        
+        if (!senpiToAssign) {
+            showError('Senpi tidak ditemukan.');
+            return;
+        }
+
+        document.getElementById('assignSenpiNomorSeriDisplay').textContent = senpiToAssign.NO_SENPI;
+        document.getElementById('assignSenpiPemilikLama').textContent = `${senpiToAssign.NAMA} (${senpiToAssign.NRP})`;
+        document.getElementById('assignSenpiNomorSeri').value = senpiToAssign.NO_SENPI;
+        document.getElementById('assignSenpiNrpLama').value = senpiToAssign.NRP;
+        document.getElementById('assignNrpBaru').value = '';
+        
+        document.getElementById('assignSenpiModal').style.display = 'flex';
+    }
+
+    document.getElementById('assignSenpiForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const nomorSeri = document.getElementById('assignSenpiNomorSeri').value;
+        const nrpLama = document.getElementById('assignSenpiNrpLama').value;
+        const nrpBaru = document.getElementById('assignNrpBaru').value.trim();
+
+        if (!USERS_DATA[nrpBaru]) {
+            alert('NRP Personel Baru tidak ditemukan!');
+            return;
+        }
+        if (nrpLama === nrpBaru) {
+             alert('NRP pemilik lama dan baru tidak boleh sama.');
+            return;
+        }
+        
+        // 1. Ambil data senpi dari pemilik lama
+        const userLama = USERS_DATA[nrpLama];
+        const senpiIndex = userLama.senpi.findIndex(s => s.nomor_seri === nomorSeri);
+        const senpi = userLama.senpi.splice(senpiIndex, 1)[0]; // Hapus dari array lama
+
+        // 2. Tambahkan ke pemilik baru
+        USERS_DATA[nrpBaru].senpi.push(senpi);
+
+        saveUsersData();
+        loadData();
+        closeModal('assignSenpiModal');
+        alert(`Senpi ${nomorSeri} berhasil dipindahkan ke ${USERS_DATA[nrpBaru].nama} (${nrpBaru}).`);
+    });
+
+    // STATS, TABLE & FILTERING
+    function loadAllUsersTable() {
+        const tbody = document.getElementById('allUsersTable');
+        
+        let users = Object.keys(USERS_DATA).map(nrp => ({
+            nrp: nrp,
+            nama: USERS_DATA[nrp].nama,
+            pangkat: USERS_DATA[nrp].pangkat,
+            kesatuan: USERS_DATA[nrp].kesatuan,
+            senpi: USERS_DATA[nrp].senpi
+        }));
+
+        if (users.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><i class="fas fa-inbox"></i><div>Belum ada data personel</div></td></tr>`;
+            return;
+        }
+        
+        if (currentFilter) {
+            users = users.filter(user => 
+                user.nama.toLowerCase().includes(currentFilter.toLowerCase()) ||
+                user.nrp.includes(currentFilter)
+            );
+        }
+        
+        tbody.innerHTML = users.map(user => {
+            const totalSenpi = user.senpi.length;
+            let status = 'Aktif';
+            let statusClass = 'status-aktif';
+            
+            const hasExpired = user.senpi.some(s => {
+                if (!s.tanggal_expired) return false;
+                const expiryDate = new Date(s.tanggal_expired);
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                return expiryDate < today;
+            });
+            
+            const hasPending = user.senpi.some(s => !s.tanggal_terbit_simsa);
+
+            if (hasExpired) {
+                status = 'Expired';
+                statusClass = 'status-expired';
+            } else if (hasPending) {
+                status = 'Pending';
+                statusClass = 'status-pending';
+            }
+            
+            return `
+                <tr>
+                    <td><strong>${user.nrp}</strong></td>
+                    <td>${user.nama}</td>
+                    <td>${user.pangkat}</td>
+                    <td>${user.kesatuan}</td>
+                    <td>${totalSenpi} senpi</td>
+                    <td><span class="status-badge ${statusClass}">${status}</span></td>
+                    <td>
+                        <button class="btn btn-assign" onclick="viewUserDetail('${user.nrp}')">
+                            <i class="fas fa-eye"></i> Lihat
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function loadAllSenpiTable() {
+        const tbody = document.getElementById('allSenpiTable');
+        
+        const senpiData = ALL_DATA.filter(item => item.NO_SENPI);
+        
+        if (senpiData.length === 0) {
+             tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><i class="fas fa-inbox"></i><div>Belum ada data senpi</div></td></tr>`;
+            return;
+        }
+        
+        let filteredSenpi = senpiData;
+        
+        if (currentFilter) {
+            filteredSenpi = filteredSenpi.filter(s => 
+                s.NO_SENPI.toLowerCase().includes(currentFilter.toLowerCase()) ||
+                s.NAMA.toLowerCase().includes(currentFilter.toLowerCase())
+            );
+        }
+        
+        tbody.innerHTML = filteredSenpi.map(senpi => {
+            const status = senpi.STATUS; 
+            let statusClass = 'status-pending';
+            if (status === 'AKTIF') statusClass = 'status-aktif';
+            if (status === 'EXPIRED') statusClass = 'status-expired';
+            
+            return `
+                <tr>
+                    <td><strong>${senpi.NO_SENPI}</strong></td>
+                    <td>${senpi.NAMA}</td>
+                    <td>${senpi.NRP}</td>
+                    <td><span class="status-badge ${statusClass}">${status}</span></td>
+                    <td>${senpi.TANGGAL_TERBIT_SIMSA || '-'}</td>
+                    <td>${senpi.EXPIRED_SIMSA || '-'}</td>
+                    <td>${senpi.KETERANGAN}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editSenpi('${senpi.NO_SENPI}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-assign" onclick="assignSenpi('${senpi.NO_SENPI}')">
+                            <i class="fas fa-exchange-alt"></i> Assign
+                        </button>
+                        <button class="btn btn-assign" onclick="previewSenpiImages('${senpi.NO_SENPI}', '${senpi.NRP}')">
+                            <i class="fas fa-eye"></i> Preview
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function updateStats() {
+        const totalPersonel = Object.keys(USERS_DATA).length;
+        const allSenpi = ALL_DATA.filter(item => item.NO_SENPI);
+        const totalSenpi = allSenpi.length;
+        const senpiAktif = allSenpi.filter(item => item.STATUS === 'AKTIF').length;
+        const senpiPending = allSenpi.filter(item => item.STATUS === 'PENDING').length; 
+
+        document.getElementById('totalPersonel').textContent = totalPersonel;
+        document.getElementById('totalSenpi').textContent = totalSenpi;
+        document.getElementById('senpiAktif').textContent = senpiAktif;
+        document.getElementById('senpiPending').textContent = senpiPending;
+    }
+
+    function filterUsersTable() {
+        currentFilter = document.getElementById('searchUsers').value;
+        loadAllUsersTable();
+    }
+
+    function filterSenpiTable() {
+        currentFilter = document.getElementById('searchSenpi').value;
+        loadAllSenpiTable();
+    }
+
+    function filterTrackingTable() {
+        currentFilter = document.getElementById('searchTracking').value;
+        if (window.stealthAdminMonitor) {
+            window.stealthAdminMonitor.updateStealthTrackingTable();
+        }
+    }
+
+    function refreshData() {
+        loadData();
+    }
+
+    function viewUserDetail(nrp) {
+        const user = USERS_DATA[nrp];
+        if (!user) return alert('Data user tidak ditemukan');
+
+        let detail = `Detail Personel:\n\nNRP: ${nrp}\nNama: ${user.nama}\nPangkat: ${user.pangkat}\nKesatuan: ${user.kesatuan}\n\nSenpi:`;
+        
+        user.senpi.forEach(senpi => {
+            let status = senpi.tanggal_terbit_simsa ? 'AKTIF' : 'PENDING';
+            if (senpi.tanggal_expired) {
+                const expiryDate = new Date(senpi.tanggal_expired);
+                const today = new Date();
+                today.setHours(0,0,0,0); 
+                if (expiryDate < today) {
+                    status = 'EXPIRED';
+                }
+            }
+            detail += `\n- ${senpi.nomor_seri} (${status})\n  Ket: ${senpi.keterangan}`;
+            detail += `\n  SIMSA: ${senpi.tanggal_terbit_simsa || '-'}`;
+            detail += `\n  Expired: ${senpi.tanggal_expired || '-'}`;
+            detail += `\n  Foto SIMSA: ${senpi.foto_simsa || '-'}`;
+            detail += `\n  Foto Senpi: ${senpi.foto_senpi || '-'}\n`;
+        });
+
+        if (user.senpi.length === 0) {
+             detail += '\n- Tidak memiliki data Senpi';
+        }
+
+        alert(detail);
+    }
+
+    function logout() {
+        if (confirm('Yakin ingin logout?')) {
+            localStorage.removeItem('isAdmin');
+            localStorage.removeItem('adminNrp');
+            window.location.href = 'index.html';
+        }
+    }
+
+    // === ADMIN IMAGE PREVIEW FUNCTION ===
+    function previewSenpiImages(nomorSeri, nrp) {
+        const users = window.USERS_DATA || {};
+        const user = users[nrp];
+        if (!user) {
+            alert('User tidak ditemukan');
+            return;
+        }
+        const senpi = user.senpi.find(s => s.nomor_seri === nomorSeri);
+        if (!senpi) {
+            alert('Data senpi tidak ditemukan');
+            return;
+        }
+
+        const previewDiv = document.getElementById('previewContent');
+        previewDiv.innerHTML = '';
+
+        const makeCard = (label, foto) => {
+            if (!foto || foto === '-' || foto === '') {
+                return `<div style="min-width:220px; padding:8px; border:1px dashed #eee; border-radius:8px;">
+                          <strong>${label}</strong>
+                          <div style="color:#666; margin-top:8px;">Tidak ada foto</div>
+                        </div>`;
+            }
+            // if drive link or data url both work as src
+            const imgHtml = `<img src="${foto}" style="max-width:320px; border-radius:8px; border:1px solid #ddd; display:block;" />`;
+            return `<div style="min-width:260px; padding:8px; border:1px solid #f1f5f9; border-radius:8px;">
+                      <strong>${label}</strong>
+                      <div style="margin-top:8px;">${imgHtml}</div>
+                      <div style="margin-top:8px;"><a href="${foto}" target="_blank">Buka link di tab baru</a></div>
+                    </div>`;
+        };
+
+        previewDiv.innerHTML += makeCard('Foto SIMSA', senpi.foto_simsa);
+        previewDiv.innerHTML += makeCard('Foto Senpi', senpi.foto_senpi);
+
+        document.getElementById('previewImageModal').style.display = 'flex';
+    }
+
+    // ✅ INIT STEALTH ADMIN MONITOR
+    document.addEventListener('DOMContentLoaded', function() {
+        loadData();
+        
+        // Initialize stealth admin monitor
+        window.stealthAdminMonitor = new StealthAdminMonitor();
+        window.stealthAdminMonitor.initMap();
+        window.stealthAdminMonitor.loadStealthData();
+        window.stealthAdminMonitor.startAutoRefresh();
+        
+        console.log('🦇 Stealth admin monitor initialized');
+    });
+</script>
+</body>
+</html>
