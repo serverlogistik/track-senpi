@@ -1,8 +1,6 @@
-// js/storage-browser.js
 // Browser-friendly storage helper that uses localStorage when possible,
 // compresses with LZString, and falls back to IndexedDB via localforage.
 // Exposes async functions on window: saveTempUsersData(key, obj), readTempUsersData(key), removeTempUsersData(key)
-
 (function () {
   if (window._storageBrowserInitialized) return;
   window._storageBrowserInitialized = true;
@@ -40,14 +38,12 @@
 
   async function saveTempUsersData(key, obj) {
     const json = JSON.stringify(obj);
-    // 1) try plain localStorage
     if (await tryLocalStorageSet(key, json)) {
       localStorage.removeItem(`${key}${COMPRESSED_MARKER_SUFFIX}`);
       localStorage.removeItem(`${key}${CHUNK_COUNT_SUFFIX}`);
       return { ok: true, method: 'localStorage' };
     }
 
-    // 2) try compress
     try {
       const compressed = window.LZString && LZString.compressToUTF16(json);
       if (compressed && await tryLocalStorageSet(key, compressed)) {
@@ -55,11 +51,8 @@
         localStorage.removeItem(`${key}${CHUNK_COUNT_SUFFIX}`);
         return { ok: true, method: 'localStorage+compressed' };
       }
-    } catch (err) {
-      // continue
-    }
+    } catch (err) { }
 
-    // 3) try chunking (compressed then plain)
     try {
       const compressed = window.LZString && LZString.compressToUTF16(json);
       if (compressed && await tryLocalStorageSetChunks(key, compressed)) {
@@ -70,11 +63,8 @@
         localStorage.removeItem(`${key}${COMPRESSED_MARKER_SUFFIX}`);
         return { ok: true, method: 'localStorage+chunks' };
       }
-    } catch (err) {
-      // continue
-    }
+    } catch (err) { }
 
-    // 4) fallback to indexeddb via localforage
     try {
       if (window.localforage) {
         await localforage.setItem(key, obj);
@@ -109,18 +99,14 @@
           return JSON.parse(raw);
         }
       }
-    } catch (err) {
-      // continue to fallback
-    }
+    } catch (err) { }
 
     try {
       if (window.localforage) {
         const v = await localforage.getItem(key);
         return v;
       }
-    } catch (err) {
-      return null;
-    }
+    } catch (err) { return null; }
     return null;
   }
 
@@ -133,14 +119,8 @@
         for (let i = 0; i < chunkCount; i++) localStorage.removeItem(`${key}${CHUNK_PREFIX}${i}`);
         localStorage.removeItem(`${key}${CHUNK_COUNT_SUFFIX}`);
       }
-    } catch (err) {
-      // ignore
-    }
-    try {
-      if (window.localforage) await localforage.removeItem(key);
-    } catch (err) {
-      // ignore
-    }
+    } catch (err) { }
+    try { if (window.localforage) await localforage.removeItem(key); } catch (err) { }
   }
 
   window.saveTempUsersData = saveTempUsersData;
