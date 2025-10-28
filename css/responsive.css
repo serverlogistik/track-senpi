@@ -1,0 +1,35 @@
+:root{
+  --gap: 1rem;
+  --container-padding: 1rem;
+  --font-base: 16px;
+  --radius: 12px;
+  --primary: #dc2626;
+  --muted: #64748b;
+}
+html,body{height:100%}
+body{font-size:var(--font-base);-webkit-font-smoothing:antialiased}
+.login-container,
+.container{
+  width:100%;
+  padding:var(--container-padding);
+  box-sizing:border-box;
+}
+button, .btn { min-height:44px; padding:0.8rem 1rem; }
+.modern-table, table{ width:100%; border-collapse:collapse; }
+@media (max-width: 900px){
+  .modern-table thead { display:none; }
+  .modern-table tbody tr { display:block; margin-bottom:0.75rem; border-radius:var(--radius); background:#fff; padding:0.75rem; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
+  .modern-table tbody td{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:none; }
+  .modern-table tbody td:before{ content: attr(data-label); color:var(--muted); font-weight:600; margin-right:8px; flex:0 0 45%; }
+  .header, .footer { padding:0.75rem; }
+  #liveMap { height: 250px !important; }
+  .input-group input { padding: 12px; font-size: 16px; }
+}
+@media (min-width: 901px){
+  .login-container { max-width: 520px; padding:2.5rem; }
+  .container { max-width: 1400px; margin:0 auto; padding:2rem; }
+  #liveMap{ height:400px; }
+}
+body.is-mobile .desktop-only { display:none !important; }
+body.is-desktop .mobile-only { display:none !important; }
+.status-badge { font-size: 0.9rem; padding:0.45rem 0.9rem; }
