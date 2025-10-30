@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Digital Clocks - Track Senpi</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#ef4444;--muted:#94a3b8;}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#061025);color:#e6eef8}
+    .wrap{max-width:980px;margin:48px auto;padding:24px}
+    header{text-align:center;margin-bottom:22px}
+    h1{font-size:1.4rem;margin-bottom:6px}
+    p.lead{color:var(--muted);margin:0}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:18px 0}
+    .tz-input{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;min-width:220px}
+    button.btn{background:var(--accent);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:8px}
+    .zone{font-weight:700;font-size:0.95rem}
+    .time{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:1.6rem}
+    .meta{color:var(--muted);font-size:0.85rem}
+    .card-actions{display:flex;gap:8px;justify-content:flex-end}
+    .small{font-size:0.8rem;padding:6px 8px}
+    footer{margin-top:28px;text-align:center;color:var(--muted);font-size:0.9rem}
+    @media (max-width:420px){.controls{flex-direction:column;align-items:stretch}.tz-input{min-width:auto;width:100%}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Digital Clocks — Waktu di Berbagai Zona</h1>
+      <p class="lead">Pilih zona waktu atau tambahkan manual (mis. "Asia/Jakarta", "Europe/London"). Waktu diperbarui setiap detik.</p>
+    </header>
+
+    <div class="controls">
+      <select id="presetTz" class="tz-input" aria-label="Pilih zona waktu">
+        <option value="UTC">UTC</option>
+        <option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
+        <option value="Asia/Jayapura">Asia/Jayapura</option>
+        <option value="Asia/Makassar">Asia/Makassar</option>
+        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+        <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+        <option value="Europe/London">Europe/London (BST/GMT)</option>
+        <option value="Europe/Berlin">Europe/Berlin (CET)</option>
+        <option value="America/New_York">America/New_York (EST)</option>
+        <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+        <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+      </select>
+
+      <input id="customTz" class="tz-input" placeholder="Masukkan zona (contoh: Asia/Jakarta)" />
+      <button id="addPreset" class="btn">Tambah</button>
+      <button id="resetBtn" class="ghost">Reset ke default</button>
+    </div>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+
+    <footer>
+      <div>Waktu sekarang: <span id="nowUtc"></span> (UTC)</div>
+      <small>Timezone list menggunakan IANA time zone names. Untuk daftar lengkap: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones</small>
+    </footer>
+  </div>
+
+  <script>
+    // Default zones
+    const DEFAULT_ZONES = [
+      'Local', // special key to show browser local time
+      'UTC',
+      'Asia/Jakarta',
+      'Asia/Makassar',
+      'Asia/Jayapura',
+      'Asia/Tokyo',
+      'Europe/London',
+      'America/New_York'
+    ];
+
+    // Storage key
+    const STORAGE_KEY = 'track-senpi:clocks:zones:v1';
+
+    // Get saved zones or default
+    function loadZones() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) { /* ignore */ }
+      return DEFAULT_ZONES.slice();
+    }
+
+    function saveZones(list) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) { console.warn('Failed save zones', e); }
+    }
+
+    // Validate timezone by trying to format a date with it
+    function isValidTimeZone(tz) {
+      if (!tz) return false;
+      if (tz === 'Local') return true;
+      try {
+        // If Intl supports it, this will not throw
+        new Intl.DateTimeFormat('en-US', { timeZone: tz });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Create DOM for a zone
+    function createCard(zone) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.zone = zone;
+
+      const zoneLabel = document.createElement('div');
+      zoneLabel.className = 'zone';
+      zoneLabel.textContent = zone === 'Local' ? `Local (${Intl.DateTimeFormat().resolvedOptions().timeZone || 'Browser'})` : zone;
+
+      const timeEl = document.createElement('div');
+      timeEl.className = 'time';
+      timeEl.textContent = '--:--:--';
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = '';
+
+      const actions = document.createElement('div');
+      actions.className = 'card-actions';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'small';
+      copyBtn.textContent = 'Copy time';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard && navigator.clipboard.writeText(timeEl.textContent)
+          .then(() => copyBtn.textContent = 'Copied!')
+          .catch(() => copyBtn.textContent = 'Failed');
+        setTimeout(()=> copyBtn.textContent = 'Copy time', 1200);
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'small';
+      removeBtn.textContent = 'Hapus';
+      removeBtn.addEventListener('click', () => removeZone(zone));
+
+      actions.appendChild(copyBtn);
+      actions.appendChild(removeBtn);
+
+      card.appendChild(zoneLabel);
+      card.appendChild(timeEl);
+      card.appendChild(meta);
+      card.appendChild(actions);
+
+      return { card, timeEl, meta };
+    }
+
+    // Render grid from zones list
+    const grid = document.getElementById('grid');
+    let zones = loadZones();
+    const cardMap = new Map();
+
+    function render() {
+      grid.innerHTML = '';
+      cardMap.clear();
+      zones.forEach(zone => {
+        const { card, timeEl, meta } = createCard(zone);
+        grid.appendChild(card);
+        cardMap.set(zone, { timeEl, meta, card });
+      });
+      saveZones(zones);
+    }
+
+    function addZone(zone) {
+      const tz = zone && zone.trim();
+      if (!isValidTimeZone(tz)) {
+        alert('Zona waktu tidak valid: ' + tz + '\nGunakan format IANA, mis. Asia/Jakarta');
+        return;
+      }
+      if (zones.includes(tz)) return;
+      zones.push(tz);
+      render();
+    }
+
+    function removeZone(zone) {
+      zones = zones.filter(z => z !== zone);
+      render();
+    }
+
+    // Update clock display each second
+    function formatForZone(date, zone) {
+      if (zone === 'Local') {
+        return date.toLocaleTimeString('en-GB', { hour12: false });
+      }
+      try {
+        return date.toLocaleTimeString('en-GB', { timeZone: zone, hour12: false });
+      } catch (e) {
+        return '--:--:--';
+      }
+    }
+
+    function formatMeta(date, zone) {
+      if (zone === 'Local') {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Browser';
+        return tz;
+      }
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(date);
+        const name = parts.find(p => p.type === 'timeZoneName');
+        return name ? name.value : zone;
+      } catch (e) {
+        return zone;
+      }
+    }
+
+    function tick() {
+      const now = new Date();
+      document.getElementById('nowUtc').textContent = now.toISOString().replace('T',' ').replace('Z','');
+      for (const [zone, obj] of cardMap.entries()) {
+        const { timeEl, meta } = obj;
+        timeEl.textContent = formatForZone(now, zone);
+        meta.textContent = formatMeta(now, zone);
+      }
+    }
+
+    // UI bindings
+    document.getElementById('addPreset').addEventListener('click', () => {
+      const preset = document.getElementById('presetTz').value;
+      addZone(preset);
+    });
+
+    document.getElementById('presetTz').addEventListener('dblclick', (e) => {
+      addZone(e.target.value);
+    });
+
+    document.getElementById('customTz').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        addZone(e.target.value);
+        e.target.value = '';
+      }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (!confirm('Reset ke zona default?')) return;
+      zones = DEFAULT_ZONES.slice();
+      render();
+    });
+
+    // Init
+    render();
+    tick();
+    setInterval(tick, 1000);
+
+    // Accessibility: focus input on load
+    document.getElementById('customTz').focus();
+  </script>
+</body>
+</html>
