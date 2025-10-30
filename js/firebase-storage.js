@@ -1,78 +1,54 @@
-// js/firebase-storage.js
-// Simple abstraction for Firebase Realtime Database reads/writes.
-// Depends on firebase SDK and firebase-init.js already loaded.
-
-(function () {
+// Minimal firebase storage helpers - paste as js/firebase-storage.js
+(function(){
   if (window._firebaseStorageInitialized) return;
   window._firebaseStorageInitialized = true;
 
   if (typeof firebase === 'undefined' || !firebase.database) {
-    console.warn('firebase.database() not available. Ensure firebase SDK + firebase-init are loaded.');
+    console.warn('Firebase SDK not loaded - firebase-storage disabled');
     return;
   }
 
   const db = firebase.database();
 
-  // Paths used by app
-  const PATH_TEMP_USERS = 'temp_users_data';    // object: { nrp: {...} }
-  const PATH_LAST_LOCATIONS = 'lastKnownLocations'; // list (push)
-  const PATH_SESSIONS = 'sessions';             // sessions/{nrp}
-  const PATH_ADMIN_LOGS = 'adminLogins';        // list (push)
-
-  // Get temp_users_data snapshot once (returns object or null)
-  async function firebaseGetTempUsersData() {
-    const snap = await db.ref(PATH_TEMP_USERS).once('value');
-    return snap.val() || null;
+  // Save last known location (push new history & update per‑NRP snapshot)
+  async function firebaseSaveLastKnownLocation(loc) {
+    const data = {
+      nrp: loc.nrp || null,
+      lat: Number(loc.lat),
+      lng: Number(loc.lng),
+      accuracy: Number(loc.accuracy || 0),
+      timestamp: loc.timestamp || new Date().toISOString(),
+      meta: loc.meta || null
+    };
+    const ref = db.ref('lastKnownLocations').push();
+    await ref.set(data);
+    if (data.nrp) {
+      // convenience node for dashboard to read latest per user
+      await db.ref(`lastKnownByNrp/${data.nrp}`).set({ key: ref.key, ...data });
+    }
+    return ref.key;
   }
 
-  // Save/overwrite temp_users_data (dangerous - use with care)
+  async function firebaseSaveCurrentUser(sessionObj) {
+    const nrp = sessionObj.nrp;
+    if (!nrp) throw new Error('session missing nrp');
+    await db.ref(`sessions/${nrp}`).set(sessionObj);
+    await db.ref(`sessions_history/${nrp}`).push(sessionObj);
+    return true;
+  }
+
+  async function firebaseSaveAdminSession(obj) {
+    await db.ref('admin_logs').push({ ...obj, ts: new Date().toISOString() });
+    return true;
+  }
+
   async function firebaseSetTempUsersData(obj) {
-    await db.ref(PATH_TEMP_USERS).set(obj);
+    await db.ref('temp_users_data').set(obj);
     return true;
   }
 
-  // Push last known location and return push key
-  async function firebaseSaveLastKnownLocation(locationObj) {
-    const ref = db.ref(PATH_LAST_LOCATIONS).push();
-    await ref.set({
-      ...locationObj,
-      created_at: new Date().toISOString()
-    });
-    return ref.key;
-  }
-
-  // Set current session for a user (by nrp)
-  async function firebaseSaveCurrentUser(userObj) {
-    if (!userObj || !userObj.nrp) throw new Error('userObj.nrp required');
-    const ref = db.ref(`${PATH_SESSIONS}/${userObj.nrp}`);
-    await ref.set({
-      ...userObj,
-      last_updated: new Date().toISOString()
-    });
-    return true;
-  }
-
-  // Remove session (logout)
-  async function firebaseRemoveSession(nrp) {
-    await db.ref(`${PATH_SESSIONS}/${nrp}`).remove();
-    return true;
-  }
-
-  // Log admin login
-  async function firebaseSaveAdminSession(adminObj) {
-    const ref = db.ref(PATH_ADMIN_LOGS).push();
-    await ref.set({
-      ...(adminObj || {}),
-      created_at: new Date().toISOString()
-    });
-    return ref.key;
-  }
-
-  // Expose functions
-  window.firebaseGetTempUsersData = firebaseGetTempUsersData;
-  window.firebaseSetTempUsersData = firebaseSetTempUsersData;
   window.firebaseSaveLastKnownLocation = firebaseSaveLastKnownLocation;
   window.firebaseSaveCurrentUser = firebaseSaveCurrentUser;
-  window.firebaseRemoveSession = firebaseRemoveSession;
   window.firebaseSaveAdminSession = firebaseSaveAdminSession;
+  window.firebaseSetTempUsersData = firebaseSetTempUsersData;
 })();
