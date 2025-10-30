@@ -307,7 +307,14 @@
             Sistem Terintegrasi Database Logistik
         </div>
     </div>
+    <!-- Firebase SDKs and helper scripts -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<script src="js/firebase-init.js"></script>
+<script src="js/firebase-storage.js"></script>
+<script src="js/firebase-sync-queue.js"></script>
+<script src="js/firebase-listener.js"></script>
     <script>
         let isLoading = false;
         let localData = null;
@@ -655,4 +662,5 @@
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
+
 </html>
