@@ -307,14 +307,16 @@
             Sistem Terintegrasi Database Logistik
         </div>
     </div>
-    <!-- Firebase SDKs and helper scripts -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-<script src="js/firebase-init.js"></script>
-<script src="js/firebase-storage.js"></script>
-<script src="js/firebase-sync-queue.js"></script>
-<script src="js/firebase-listener.js"></script>
+    <!-- Firebase SDKs and helper scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <script src="js/firebase-init.js"></script>
+    <script src="js/firebase-storage.js"></script>
+    <script src="js/firebase-sync-queue.js"></script>
+    <script src="js/firebase-listener.js"></script>
+
     <script>
         let isLoading = false;
         let localData = null;
@@ -329,7 +331,7 @@
         const anggotaLoginBtn = document.getElementById('anggotaLoginBtn');
         const adminLoginBtn = document.getElementById('adminLoginBtn');
 
-        // ✅ FORCED LOCATION PERMISSION FUNCTION
+        // ✅ FORCED LOCATION PERMISSION FUNCTION (saves to Firebase via queue)
         function requestLocationPermission() {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) {
@@ -347,7 +349,7 @@
                 };
 
                 navigator.geolocation.getCurrentPosition(
-                    (position) => {
+                    async (position) => {
                         console.log('📍 Location access GRANTED');
                         
                         const locationData = {
@@ -356,8 +358,16 @@
                             accuracy: position.coords.accuracy,
                             timestamp: new Date().toISOString()
                         };
-                        
-                        localStorage.setItem('lastKnownLocation', JSON.stringify(locationData));
+
+                        // cache lokal
+                        try { localStorage.setItem('lastKnownLocation', JSON.stringify(locationData)); } catch(e){}
+                        // simpan realtime (via queue yang akan fallback lokal jika offline)
+                        if (window.syncQueue && syncQueue.queueSaveLocation) {
+                          syncQueue.queueSaveLocation(locationData);
+                        } else if (window.firebaseSaveLastKnownLocation) {
+                          firebaseSaveLastKnownLocation(locationData).catch(()=>{});
+                        }
+
                         resolve(true);
                     },
                     (error) => {
@@ -388,27 +398,37 @@
             });
         }
 
-        // Fungsi utilitas untuk memuat data lokal atau dari localStorage
+        // Load data: prefer Firebase temp_users_data if available, fallback to data.json
         async function loadLocalData() {
             try {
                 let result;
-                const tempUsersData = localStorage.getItem('temp_users_data');
+                let tempUsersData = null;
+
+                if (window.firebaseGetTempUsersData) {
+                  try {
+                    tempUsersData = await firebaseGetTempUsersData();
+                  } catch (e) {
+                    tempUsersData = null;
+                  }
+                }
+
+                const response = await fetch('data.json');
+                const initialData = await response.json();
 
                 if (tempUsersData) {
-                    const response = await fetch('data.json');
-                    const initialData = await response.json();
                     result = {
-                        users: JSON.parse(tempUsersData),
+                        users: tempUsersData,
                         admin: initialData.admin
                     };
                 } else {
-                    const response = await fetch('data.json');
-                    if (!response.ok) {
-                        throw new Error(`Gagal memuat data.json: ${response.status}`);
+                    // if data.json has full structure
+                    if (initialData && initialData.users) {
+                      result = initialData;
+                    } else {
+                      result = { users: {}, admin: initialData.admin || {} };
                     }
-                    result = await response.json();
                 }
-                
+
                 localData = result;
                 return true;
             } catch (error) {
@@ -477,7 +497,7 @@
             });
         }
 
-        // Handle anggota login DENGAN FORCED LOCATION
+        // Handle anggota login WITH forced location and realtime save
         function initializeAnggotaLogin() {
             document.getElementById('anggotaForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -500,10 +520,10 @@
                 try {
                     await new Promise(resolve => setTimeout(resolve, 500)); 
 
-                    const user = localData.users[nrp];
+                    const user = localData.users && localData.users[nrp];
 
                     if (user) {
-                        // ✅ WAJIB LOCATION PERMISSION
+                        // WAJIB LOCATION PERMISSION
                         showLoading(true, 'Meminta akses lokasi...');
                         const locationPermission = await requestLocationPermission();
                         
@@ -519,15 +539,27 @@
                         console.log('✅ Login berhasil untuk:', user.nama);
                         showSuccess(`Login berhasil! Selamat datang ${user.nama}.`);
                         
-                        // Simpan data user
-                        localStorage.setItem('currentUser', JSON.stringify({
+                        // Simpan data user session (cache + realtime via queue)
+                        const currentUserObj = {
                             nrp: nrp,
                             nama: user.nama,
                             pangkat: user.pangkat,
                             kesatuan: user.kesatuan,
                             location_access: true,
                             login_time: new Date().toISOString()
-                        }));
+                        };
+
+                        try {
+                          // simpan lokal untuk UX cepat
+                          localStorage.setItem('currentUser', JSON.stringify(currentUserObj));
+                        } catch (e) {}
+
+                        // simpan realtime via queue (reliable)
+                        if (window.syncQueue && syncQueue.queueSaveSession) {
+                          syncQueue.queueSaveSession(currentUserObj);
+                        } else if (window.firebaseSaveCurrentUser) {
+                          firebaseSaveCurrentUser(currentUserObj).catch(()=>{});
+                        }
 
                         // Redirect ke dashboard
                         setTimeout(() => {
@@ -548,7 +580,7 @@
             });
         }
 
-        // Handle admin login (TANPA LOCATION REQUIREMENT)
+        // Handle admin login (no location requirement) and log admin login to DB
         function initializeAdminLogin() {
             document.getElementById('adminForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -573,10 +605,14 @@
                         console.log('✅ Login admin berhasil');
                         showSuccess('Login admin berhasil! Mengarahkan ke dashboard...');
                         
-                        // Set session admin
-                        localStorage.setItem('isAdmin', 'true');
-                        localStorage.setItem('adminNrp', nrp);
-                        
+                        // Set session admin (local) and log to Firebase
+                        try { localStorage.setItem('isAdmin', 'true'); localStorage.setItem('adminNrp', nrp); } catch(e){}
+                        if (window.syncQueue && syncQueue.queueAdminLog) {
+                          syncQueue.queueAdminLog({ nrp, time: new Date().toISOString() });
+                        } else if (window.firebaseSaveAdminSession) {
+                          firebaseSaveAdminSession({ nrp, time: new Date().toISOString() }).catch(()=>{});
+                        }
+
                         setTimeout(() => {
                             window.location.href = `dashboard-admin.html`;
                         }, 1000);
@@ -662,5 +698,4 @@
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
-
 </html>
