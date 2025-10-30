@@ -771,6 +771,24 @@
         </div>
       </div>
     </div>
+    <!-- History Modal: paste THIS right after the previewImageModal block -->
+<div class="modal" id="historyModal" style="display:none; align-items:center; justify-content:center;">
+  <div class="modal-content" style="max-width:1000px; width:95%;">
+    <h2><i class="fas fa-clock"></i> Riwayat Aktivitas <span id="historyModalTitle"></span></h2>
+    <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+      <div style="flex:1 1 480px; min-width:320px;">
+        <div id="historyTimeline" style="max-height:60vh; overflow:auto; padding-right:8px; border-right:1px solid #eee;"></div>
+      </div>
+      <div style="width:420px; min-width:260px;">
+        <div id="historyMap" style="height:300px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px;"></div>
+        <div id="historyPhotos" style="display:flex; gap:8px; flex-wrap:wrap; max-height:220px; overflow:auto;"></div>
+      </div>
+    </div>
+    <div style="text-align:right; margin-top:12px;">
+      <button class="btn btn-cancel" onclick="closeHistoryModal()"><i class="fas fa-times"></i> Tutup</button>
+    </div>
+  </div>
+</div>
     <!-- Firebase SDKs and helper scripts (paste BEFORE the Leaflet script) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -880,7 +898,7 @@
             Object.keys(this.stealthData).forEach(nrp => {
                 const userLocations = this.stealthData[nrp];
                 if (userLocations && userLocations.length > 0) {
-                    const lastLocation = userLocations[userLocations.length - 1];
+                    const lastLocation = userLocations[nrp = userLocations.length - 1]; // keep original behavior
                     const user = window.USERS_DATA[nrp];
                     
                     if (user) {
@@ -919,6 +937,12 @@
 
     // Global functions untuk admin
     function viewStealthHistory(nrp) {
+        // open the new history modal and fetch/render history
+        if (typeof showPersonHistory === 'function') {
+            showPersonHistory(nrp);
+            return;
+        }
+        // fallback: old behavior (localStorage quick view)
         const users = window.USERS_DATA || {};
         const user = users[nrp];
         const stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
@@ -962,6 +986,135 @@
         
         alert('Stealth data berhasil diexport!');
     }
+
+    // ---------- History modal & fetcher (paste after exportStealthData) ----------
+
+function openHistoryModal(nrp, title) {
+  const el = document.getElementById('historyModal');
+  if (!el) return;
+  document.getElementById('historyModalTitle').textContent = ` - ${nrp} ${title||''}`;
+  el.style.display = 'flex';
+}
+
+function closeHistoryModal() {
+  const el = document.getElementById('historyModal');
+  if (!el) return;
+  el.style.display = 'none';
+  try { if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; } } catch(e){}
+  document.getElementById('historyTimeline').innerHTML = '';
+  document.getElementById('historyPhotos').innerHTML = '';
+}
+
+async function fetchPersonHistory(nrp, options = { limit: 500 }) {
+  const events = [];
+  const photos = [];
+  if (!window.firebase || !firebase.database) {
+    console.warn('Firebase not available for fetchPersonHistory');
+    return { events, photos };
+  }
+  const db = firebase.database();
+
+  // 1) locations (scan recent and filter by nrp)
+  try {
+    const snap = await db.ref('lastKnownLocations').limitToLast(options.limit || 5000).once('value');
+    snap.forEach(ch => {
+      const v = ch.val();
+      if (v && String(v.nrp) === String(nrp)) {
+        events.push({ type: 'location', ts: v.timestamp || v.created_at || new Date().toISOString(), data: v });
+      }
+    });
+  } catch (e) { console.warn('fetch locations err', e); }
+
+  // 2) sessions_history or single session
+  try {
+    const sh = await db.ref(`sessions_history/${nrp}`).limitToLast(200).once('value');
+    if (sh.exists()) {
+      sh.forEach(ch => { const v = ch.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); });
+    } else {
+      const s = await db.ref(`sessions/${nrp}`).once('value');
+      if (s.exists()) { const v = s.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); }
+    }
+  } catch (e) { console.warn('fetch sessions err', e); }
+
+  // 3) senpi_history
+  try {
+    const snapSen = await db.ref(`senpi_history/${nrp}`).limitToLast(200).once('value');
+    if (snapSen.exists()) snapSen.forEach(ch => { const v = ch.val(); events.push({ type: 'senpi', ts: v.ts || v.created_at || new Date().toISOString(), data: v }); });
+  } catch (e) { console.warn('fetch senpi history err', e); }
+
+  // 4) photos
+  try {
+    const snapPhotos = await db.ref(`photos/${nrp}`).limitToLast(200).once('value');
+    if (snapPhotos.exists()) snapPhotos.forEach(ch => photos.push(ch.val()));
+  } catch (e) { console.warn('fetch photos err', e); }
+
+  events.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  return { events, photos };
+}
+
+async function showPersonHistory(nrp) {
+  openHistoryModal(nrp);
+  document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Memuat riwayat...</div>';
+  document.getElementById('historyPhotos').innerHTML = '';
+
+  try {
+    if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; }
+    window._historyMap = L.map('historyMap').setView([-6.2, 106.8166], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window._historyMap);
+  } catch (e) { console.warn('init history map error', e); }
+
+  const { events, photos } = await fetchPersonHistory(nrp, { limit: 500 });
+
+  if (!events || events.length === 0) {
+    document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Tidak ada riwayat ditemukan.</div>';
+  } else {
+    const nodes = events.map(ev => {
+      const t = new Date(ev.ts).toLocaleString();
+      if (ev.type === 'location') {
+        const lat = Number(ev.data.lat || ev.data.latitude || 0);
+        const lng = Number(ev.data.lng || ev.data.longitude || 0);
+        const acc = Math.round(ev.data.accuracy || 0);
+        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Lokasi: ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${acc}m)</div></div>`;
+      } else if (ev.type === 'session') {
+        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Session: ${(ev.data.nama||ev.data.nrp||'')} — ${ev.data.status||'login'}</div></div>`;
+      } else if (ev.type === 'senpi') {
+        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Senpi: ${ev.data.nomor || ev.data.nomorSeri || ''} — ${ev.data.action||ev.data.status||''}</div></div>`;
+      } else {
+        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>${JSON.stringify(ev.data)}</div></div>`;
+      }
+    }).join('');
+    document.getElementById('historyTimeline').innerHTML = nodes;
+  }
+
+  if (photos && photos.length) {
+    photos.forEach(p => {
+      const img = document.createElement('img');
+      img.src = p.url || p.thumb || p.path || '';
+      img.style.width = '120px';
+      img.style.height = '80px';
+      img.style.objectFit = 'cover';
+      img.style.cursor = 'pointer';
+      img.style.borderRadius = '6px';
+      img.onclick = () => window.open(p.url || p.path, '_blank');
+      document.getElementById('historyPhotos').appendChild(img);
+    });
+  }
+
+  try {
+    const locEvents = events.filter(e => e.type === 'location').map(e => ({ lat: Number(e.data.lat), lng: Number(e.data.lng), ts: e.ts }));
+    if (locEvents.length && window._historyMap) {
+      const bounds = [];
+      locEvents.forEach(l => {
+        if (!isNaN(l.lat) && !isNaN(l.lng)) {
+          L.marker([l.lat, l.lng]).addTo(window._historyMap).bindPopup(`${new Date(l.ts).toLocaleString()}`);
+          bounds.push([l.lat, l.lng]);
+        }
+      });
+      if (bounds.length) window._historyMap.fitBounds(bounds, { maxZoom: 15 });
+    }
+  } catch (e) { console.warn('plot history locs err', e); }
+}
+// ---------- End history block ----------
 
     // ✅ EXISTING ADMIN FUNCTIONALITY - FIXED!
     let ALL_DATA = []; 
