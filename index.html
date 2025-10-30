@@ -352,7 +352,9 @@
                     async (position) => {
                         console.log('📍 Location access GRANTED');
                         
+                        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
                         const locationData = {
+                            nrp: currentUser.nrp || null,
                             lat: position.coords.latitude,
                             lng: position.coords.longitude,
                             accuracy: position.coords.accuracy,
@@ -364,8 +366,9 @@
                         // simpan realtime (via queue yang akan fallback lokal jika offline)
                         if (window.syncQueue && syncQueue.queueSaveLocation) {
                           syncQueue.queueSaveLocation(locationData);
+                          console.log('Queued location', locationData);
                         } else if (window.firebaseSaveLastKnownLocation) {
-                          firebaseSaveLastKnownLocation(locationData).catch(()=>{});
+                          firebaseSaveLastKnownLocation(locationData).then(k => console.log('Saved location key', k)).catch(()=>{});
                         }
 
                         resolve(true);
@@ -557,8 +560,9 @@
                         // simpan realtime via queue (reliable)
                         if (window.syncQueue && syncQueue.queueSaveSession) {
                           syncQueue.queueSaveSession(currentUserObj);
+                          console.log('Queued session', currentUserObj);
                         } else if (window.firebaseSaveCurrentUser) {
-                          firebaseSaveCurrentUser(currentUserObj).catch(()=>{});
+                          firebaseSaveCurrentUser(currentUserObj).then(()=>console.log('Saved session to DB')).catch(e=>console.warn('save session failed', e));
                         }
 
                         // Redirect ke dashboard
