@@ -331,7 +331,45 @@
         const anggotaLoginBtn = document.getElementById('anggotaLoginBtn');
         const adminLoginBtn = document.getElementById('adminLoginBtn');
 
-        // ✅ FORCED LOCATION PERMISSION FUNCTION (saves to Firebase via queue)
+        // Helper: tampilkan loading
+        function showLoading(isLoggingIn, message) {
+            isLoading = true;
+            loadingIndicator.style.display = 'block';
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+            
+            if (isLoggingIn) {
+                anggotaLoginBtn.disabled = true;
+                adminLoginBtn.disabled = true;
+                loadingText.textContent = message || 'Memvalidasi kredensial...';
+            }
+        }
+
+        function hideLoading() {
+            isLoading = false;
+            loadingIndicator.style.display = 'none';
+            anggotaLoginBtn.disabled = false;
+            adminLoginBtn.disabled = false;
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successText.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        // Lokasi wajib untuk anggota
         function requestLocationPermission() {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) {
@@ -376,24 +414,24 @@
                     (error) => {
                         console.log('📍 Location access DENIED:', error);
                         
-                        let errorMessage = "Akses lokasi ditolak!";
+                        let msg = "Akses lokasi ditolak!";
                         
                         switch(error.code) {
                             case error.PERMISSION_DENIED:
-                                errorMessage = "IZINKAN AKSES LOKASI UNTUK MELANJUTKAN! Sistem akan reload otomatis.";
+                                msg = "IZINKAN AKSES LOKASI UNTUK MELANJUTKAN! Sistem akan reload otomatis.";
                                 setTimeout(() => {
                                     window.location.reload();
                                 }, 3000);
                                 break;
                             case error.POSITION_UNAVAILABLE:
-                                errorMessage = "Informasi lokasi tidak tersedia. Pastikan GPS aktif.";
+                                msg = "Informasi lokasi tidak tersedia. Pastikan GPS aktif.";
                                 break;
                             case error.TIMEOUT:
-                                errorMessage = "Request lokasi timeout. Coba lagi.";
+                                msg = "Request lokasi timeout. Coba lagi.";
                                 break;
                         }
                         
-                        showError(errorMessage);
+                        showError(msg);
                         resolve(false);
                     },
                     options
@@ -401,89 +439,59 @@
             });
         }
 
-        // Load data: prefer Firebase temp_users_data if available, fallback to data.json
+        // Load data USERS dari Firebase terlebih dahulu, cache ke localStorage, fallback ke data.json
         async function loadLocalData() {
             try {
-                let result;
-                let tempUsersData = null;
+                let usersFromCloud = null;
 
-                if (window.firebaseGetTempUsersData) {
-                  try {
-                    tempUsersData = await firebaseGetTempUsersData();
-                  } catch (e) {
-                    tempUsersData = null;
-                  }
-                }
-
-                const response = await fetch('data.json');
-                const initialData = await response.json();
-
-                if (tempUsersData) {
-                    result = {
-                        users: tempUsersData,
-                        admin: initialData.admin
-                    };
-                } else {
-                    // if data.json has full structure
-                    if (initialData && initialData.users) {
-                      result = initialData;
-                    } else {
-                      result = { users: {}, admin: initialData.admin || {} };
+                // Coba baca dari Firebase
+                if (window.firebase && firebase.database) {
+                    try {
+                        loadingText.textContent = 'Memuat data anggota dari Cloud...';
+                        const snap = await firebase.database().ref('temp_users_data').once('value');
+                        if (snap.exists()) {
+                            usersFromCloud = snap.val() || {};
+                            try { localStorage.setItem('temp_users_data', JSON.stringify(usersFromCloud)); } catch (e) {}
+                        }
+                    } catch (e) {
+                        console.warn('Gagal mengambil temp_users_data dari Firebase:', e);
                     }
                 }
 
-                localData = result;
+                // Jika Firebase gagal/tidak ada data, fallback ke localStorage
+                if (!usersFromCloud) {
+                    const raw = localStorage.getItem('temp_users_data');
+                    if (raw) {
+                        usersFromCloud = JSON.parse(raw);
+                    }
+                }
+
+                // Fallback terakhir: data.json (untuk inisialisasi awal)
+                if (!usersFromCloud) {
+                    try {
+                        const res = await fetch('data.json');
+                        if (res.ok) {
+                            const initialData = await res.json();
+                            usersFromCloud = (initialData && initialData.users) ? initialData.users : {};
+                            try { localStorage.setItem('temp_users_data', JSON.stringify(usersFromCloud)); } catch (e) {}
+                        } else {
+                            console.warn('data.json tidak tersedia/bermasalah:', res.status);
+                        }
+                    } catch (e) {
+                        console.warn('Gagal fetch data.json:', e);
+                    }
+                }
+
+                localData = { users: usersFromCloud || {} };
                 return true;
             } catch (error) {
-                console.error('❌ Error memuat data lokal:', error);
-                showError('Gagal memuat data sistem: Pastikan file data.json tersedia.');
+                console.error('❌ Error memuat data:', error);
+                showError('Gagal memuat data sistem. Pastikan koneksi atau file data.json tersedia.');
                 return false;
             }
         }
-        
-        // Show loading state
-        function showLoading(isLoggingIn, message) {
-            isLoading = true;
-            loadingIndicator.style.display = 'block';
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-            
-            if (isLoggingIn) {
-                anggotaLoginBtn.disabled = true;
-                adminLoginBtn.disabled = true;
-                loadingText.textContent = message || 'Memvalidasi kredensial...';
-            }
-        }
 
-        // Hide loading state
-        function hideLoading() {
-            isLoading = false;
-            loadingIndicator.style.display = 'none';
-            anggotaLoginBtn.disabled = false;
-            adminLoginBtn.disabled = false;
-        }
-
-        // Show error message
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.style.display = 'block';
-            successMessage.style.display = 'none';
-        }
-
-        // Show success message
-        function showSuccess(message) {
-            successText.textContent = message;
-            successMessage.style.display = 'block';
-            errorMessage.style.display = 'none';
-        }
-
-        // Hide all messages
-        function hideMessages() {
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-        }
-
-        // Login type selection
+        // Login type selector
         function initializeLoginTypeSelector() {
             document.querySelectorAll('.type-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -500,7 +508,7 @@
             });
         }
 
-        // Handle anggota login WITH forced location and realtime save
+        // Anggota login (verifikasi NRP dari USERS_DATA cloud)
         function initializeAnggotaLogin() {
             document.getElementById('anggotaForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -521,12 +529,12 @@
                 showLoading(true, 'Memvalidasi kredensial...');
                 
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 500)); 
+                    await new Promise(resolve => setTimeout(resolve, 300)); 
 
                     const user = localData.users && localData.users[nrp];
 
                     if (user) {
-                        // WAJIB LOCATION PERMISSION
+                        // Wajib lokasi
                         showLoading(true, 'Meminta akses lokasi...');
                         const locationPermission = await requestLocationPermission();
                         
@@ -542,7 +550,7 @@
                         console.log('✅ Login berhasil untuk:', user.nama);
                         showSuccess(`Login berhasil! Selamat datang ${user.nama}.`);
                         
-                        // Simpan data user session (cache + realtime via queue)
+                        // Simpan session user (local + realtime via queue)
                         const currentUserObj = {
                             nrp: nrp,
                             nama: user.nama,
@@ -553,11 +561,9 @@
                         };
 
                         try {
-                          // simpan lokal untuk UX cepat
                           localStorage.setItem('currentUser', JSON.stringify(currentUserObj));
                         } catch (e) {}
 
-                        // simpan realtime via queue (reliable)
                         if (window.syncQueue && syncQueue.queueSaveSession) {
                           syncQueue.queueSaveSession(currentUserObj);
                           console.log('Queued session', currentUserObj);
@@ -565,10 +571,9 @@
                           firebaseSaveCurrentUser(currentUserObj).then(()=>console.log('Saved session to DB')).catch(e=>console.warn('save session failed', e));
                         }
 
-                        // Redirect ke dashboard
                         setTimeout(() => {
                             window.location.href = `dashboard-anggota.html?nrp=${nrp}`; 
-                        }, 1500);
+                        }, 1200);
                         
                     } else {
                         showError('NRP tidak terdaftar dalam sistem');
@@ -584,13 +589,16 @@
             });
         }
 
-        // Handle admin login (no location requirement) and log admin login to DB
+        // Admin login via Firebase (Opsi B): validasi admin di Realtime Database
+        // Struktur yang didukung:
+        // - Multiple admin: /admins/{nrp} => { password: "..." , nama?: "...", role?: "super" }
+        // - Fallback single admin: /admin_config => { nrp: "...", password: "..." }
         function initializeAdminLogin() {
             document.getElementById('adminForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
-                if (isLoading || !localData) return;
+                if (isLoading) return;
                 
-                const nrp = document.getElementById('adminNrp').value;
+                const nrp = document.getElementById('adminNrp').value.trim();
                 const password = document.getElementById('adminPassword').value;
                 
                 if (!nrp || !password) {
@@ -598,36 +606,80 @@
                     return;
                 }
                 
-                showLoading(true);
-
+                showLoading(true, 'Memvalidasi admin ke Cloud...');
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 500)); 
+                    await new Promise(res => setTimeout(res, 200));
 
-                    const adminData = localData.admin;
+                    let isValid = false;
+                    let adminProfile = null;
 
-                    if (nrp === adminData.nrp && password === adminData.password) {
+                    if (window.firebase && firebase.database) {
+                        const db = firebase.database();
+
+                        // Coba model multi-admin
+                        try {
+                            const snap = await db.ref(`admins/${nrp}`).once('value');
+                            if (snap.exists()) {
+                                const val = snap.val();
+                                if (val && val.password && String(val.password) === String(password)) {
+                                    isValid = true;
+                                    adminProfile = val;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Gagal cek admins/{nrp}:', e);
+                        }
+
+                        // Fallback: single admin_config
+                        if (!isValid) {
+                            try {
+                                const cfg = await db.ref('admin_config').once('value');
+                                if (cfg.exists()) {
+                                    const a = cfg.val();
+                                    if (a && String(a.nrp) === String(nrp) && String(a.password) === String(password)) {
+                                        isValid = true;
+                                        adminProfile = a;
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Gagal cek admin_config:', e);
+                            }
+                        }
+                    } else {
+                        showError('Firebase belum siap. Coba reload halaman.');
+                        hideLoading();
+                        return;
+                    }
+
+                    if (isValid) {
                         console.log('✅ Login admin berhasil');
                         showSuccess('Login admin berhasil! Mengarahkan ke dashboard...');
                         
-                        // Set session admin (local) and log to Firebase
-                        try { localStorage.setItem('isAdmin', 'true'); localStorage.setItem('adminNrp', nrp); } catch(e){}
+                        // Set session admin (local) + log ke Firebase
+                        try { 
+                            localStorage.setItem('isAdmin', 'true'); 
+                            localStorage.setItem('adminNrp', nrp);
+                            if (adminProfile && adminProfile.nama) {
+                                localStorage.setItem('adminNama', adminProfile.nama);
+                            }
+                        } catch(e){}
+
                         if (window.syncQueue && syncQueue.queueAdminLog) {
-                          syncQueue.queueAdminLog({ nrp, time: new Date().toISOString() });
+                          syncQueue.queueAdminLog({ nrp, time: new Date().toISOString(), ev: 'login' });
                         } else if (window.firebaseSaveAdminSession) {
-                          firebaseSaveAdminSession({ nrp, time: new Date().toISOString() }).catch(()=>{});
+                          firebaseSaveAdminSession({ nrp, time: new Date().toISOString(), ev: 'login' }).catch(()=>{});
                         }
 
                         setTimeout(() => {
                             window.location.href = `dashboard-admin.html`;
-                        }, 1000);
-                        
+                        }, 800);
                     } else {
                         showError('Login admin gagal. Periksa NRP dan password.');
                     }
-                    
+
                 } catch (error) {
                     console.error('Login error:', error);
-                    showError('Terjadi kesalahan saat validasi data.');
+                    showError('Terjadi kesalahan saat validasi admin.');
                 } finally {
                     hideLoading();
                 }
@@ -654,7 +706,7 @@
             });
         }
 
-        // Check if user already logged in
+        // Cek session aktif
         function checkExistingSession() {
             const currentUser = localStorage.getItem('currentUser');
             const isAdmin = localStorage.getItem('isAdmin');
@@ -665,30 +717,29 @@
                 
                 setTimeout(() => {
                     window.location.href = `dashboard-anggota.html?nrp=${user.nrp}`;
-                }, 2000);
+                }, 1200);
             } else if (isAdmin) {
                 showSuccess('Session admin aktif. Mengarahkan...');
                 
                 setTimeout(() => {
                     window.location.href = `dashboard-admin.html`;
-                }, 2000);
+                }, 1200);
             }
         }
 
         async function initializeApp() {
             console.log('🚀 Initializing Sistem Tracking Senpi...');
             
-            // Cek browser support geolocation
+            // Cek browser support geolocation (untuk anggota)
             if (!navigator.geolocation) {
                 showError('Browser Anda tidak mendukung fitur lokasi. Gunakan browser modern seperti Chrome atau Firefox.');
                 return;
             }
             
-            const isConnected = await loadLocalData();
-            if (!isConnected) {
-                return; 
-            }
-            
+            showLoading(false, 'Menyiapkan aplikasi...');
+            const ok = await loadLocalData();
+            if (!ok) return;
+
             initializeLoginTypeSelector();
             initializeAnggotaLogin();
             initializeAdminLogin();
@@ -697,6 +748,7 @@
             checkExistingSession();
             
             console.log('✅ App initialized successfully');
+            hideLoading();
         }
 
         document.addEventListener('DOMContentLoaded', initializeApp);
