@@ -799,35 +799,228 @@
 <script src="js/firebase-listener.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // ✅ STEALTH ADMIN MONITOR CLASS
+    // ===== Global State =====
+    let ALL_DATA = [];
+    let USERS_DATA = {};
+    let currentFilter = '';
+    let latestByNrp = {}; // lokasi terakhir per NRP (realtime dari Firebase)
+
+    // ===== Guard: Admin session =====
+    if (!localStorage.getItem('isAdmin')) {
+        alert('Akses ditolak. Silakan login sebagai admin.');
+        window.location.href = 'index.html';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+    
+    function showError(message) {
+        alert('Error: ' + message);
+    }
+
+    // Simpan USERS_DATA ke localStorage + sinkron ke Firebase melalui queue
+    function saveUsersData() {
+        try { localStorage.setItem('temp_users_data', JSON.stringify(USERS_DATA)); } catch(e){}
+        if (window.syncQueue && syncQueue.queueSetTempUsers) {
+            syncQueue.queueSetTempUsers(USERS_DATA);
+        } else if (window.firebaseSetTempUsersData) {
+            firebaseSetTempUsersData(USERS_DATA).catch(()=>{});
+        }
+    }
+
+    function setLoadingState(isLoading) {
+        const buttons = document.querySelectorAll('.btn, .logout-btn');
+        buttons.forEach(btn => btn.disabled = isLoading);
+        if (isLoading) {
+            document.getElementById('allUsersTable').innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
+            document.getElementById('allSenpiTable').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
+            const trackingTable = document.getElementById('trackingTable');
+            if (trackingTable) trackingTable.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
+        }
+    }
+
+    // ===== Firebase-first Load =====
+    async function loadData() {
+        setLoadingState(true);
+        try {
+            let users = null;
+
+            // 1) Ambil dari Firebase
+            if (window.firebase && firebase.database) {
+                try {
+                    const snap = await firebase.database().ref('temp_users_data').once('value');
+                    if (snap.exists()) {
+                        users = snap.val() || {};
+                        try { localStorage.setItem('temp_users_data', JSON.stringify(users)); } catch(e){}
+                    }
+                } catch (e) {
+                    console.warn('Gagal ambil temp_users_data dari Firebase:', e);
+                }
+            }
+
+            // 2) Fallback localStorage
+            if (!users) {
+                const raw = localStorage.getItem('temp_users_data');
+                if (raw) users = JSON.parse(raw);
+            }
+
+            // 3) Fallback terakhir: data.json
+            if (!users) {
+                const response = await fetch('data.json');
+                if (!response.ok) throw new Error(`Gagal memuat data.json: ${response.status}`);
+                const result = await response.json();
+                users = result && result.users ? result.users : {};
+                try { localStorage.setItem('temp_users_data', JSON.stringify(users)); } catch(e){}
+            }
+
+            USERS_DATA = users;
+            window.USERS_DATA = USERS_DATA;
+
+            rebuildFlatData();
+            initializeAdminDashboard();
+
+        } catch (error) {
+            console.error('❌ Gagal memuat data:', error);
+            showError('Gagal memuat data: ' + error.message);
+        } finally {
+            setLoadingState(false);
+        }
+    }
+
+    function rebuildFlatData() {
+        ALL_DATA = [];
+        for (const nrp in USERS_DATA) {
+            const user = USERS_DATA[nrp];
+            if (!user) continue;
+
+            if (!Array.isArray(user.senpi)) user.senpi = [];
+            
+            if (user.senpi.length === 0) {
+                ALL_DATA.push({
+                    NRP: nrp,
+                    NAMA: user.nama,
+                    PANGKAT: user.pangkat,
+                    KESATUAN: user.kesatuan
+                });
+            }
+
+            user.senpi.forEach(senpi => {
+                let status = senpi.tanggal_terbit_simsa ? 'AKTIF' : 'PENDING';
+                if (senpi.tanggal_expired) {
+                    const expiryDate = new Date(senpi.tanggal_expired);
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    if (expiryDate < today) status = 'EXPIRED';
+                }
+
+                ALL_DATA.push({
+                    NRP: nrp,
+                    NAMA: user.nama,
+                    PANGKAT: user.pangkat,
+                    KESATUAN: user.kesatuan,
+                    NO_SENPI: senpi.nomor_seri,
+                    JENIS: senpi.jenis,
+                    KETERANGAN: senpi.keterangan,
+                    TANGGAL_TERBIT_SIMSA: senpi.tanggal_terbit_simsa,
+                    EXPIRED_SIMSA: senpi.tanggal_expired,
+                    STATUS: status,
+                    FOTO_SIMSA: senpi.foto_simsa || '-',
+                    FOTO_SENPI: senpi.foto_senpi || '-'
+                });
+            });
+        }
+    }
+
+    function initializeAdminDashboard() {
+        loadAllUsersTable();
+        loadAllSenpiTable();
+        updateStats();
+        if (window.stealthAdminMonitor) {
+            window.stealthAdminMonitor.updateStealthTrackingTable();
+            window.stealthAdminMonitor.updateStealthMap();
+        }
+    }
+
+    // ===== Realtime Sync: Users & Locations =====
+    function enableRealtimeUsersSync() {
+        if (!window.firebaseListeners || !firebaseListeners.subscribeTempUsers) return;
+        firebaseListeners.subscribeTempUsers((newUsers) => {
+            if (!newUsers) return;
+            USERS_DATA = newUsers;
+            window.USERS_DATA = USERS_DATA;
+            try { localStorage.setItem('temp_users_data', JSON.stringify(USERS_DATA)); } catch(e){}
+            rebuildFlatData();
+            initializeAdminDashboard();
+        });
+    }
+
+    function enableRealtimeLocations() {
+        if (!window.firebaseListeners) return;
+
+        // Prefer snapshot per NRP
+        if (firebaseListeners.subscribeLastByNrp) {
+            firebaseListeners.subscribeLastByNrp((obj) => {
+                latestByNrp = obj || {};
+                if (window.stealthAdminMonitor) {
+                    window.stealthAdminMonitor.updateStealthTrackingTable();
+                    window.stealthAdminMonitor.updateStealthMap();
+                }
+            });
+            return;
+        }
+
+        // Fallback: agregasi dari stream lastKnownLocations
+        if (firebaseListeners.subscribeLastLocations) {
+            firebaseListeners.subscribeLastLocations(300, (key, val) => {
+                if (val && val.nrp) {
+                    latestByNrp[val.nrp] = val;
+                    if (window.stealthAdminMonitor) {
+                        window.stealthAdminMonitor.updateStealthTrackingTable();
+                        window.stealthAdminMonitor.updateStealthMap();
+                    }
+                }
+            });
+        }
+    }
+
+    // ===== STEALTH ADMIN MONITOR CLASS (terintegrasi Firebase) =====
     class StealthAdminMonitor {
         constructor() {
-            this.stealthData = {};
             this.map = null;
             this.stealthMarkers = {};
-            this.updateInterval = 30000; // 30 detik
+            this.updateInterval = 30000; // fallback periodic refresh
         }
 
         initMap() {
             if (document.getElementById('liveMap')) {
                 this.map = L.map('liveMap').setView([-6.2, 106.8], 10);
-                
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
-                }).addTo(this.map);
-                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(this.map);
                 console.log('🗺️ Stealth map initialized');
             }
         }
 
-        loadStealthData() {
-            try {
-                this.stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
-                this.updateStealthTrackingTable();
-                this.updateStealthMap();
-            } catch (error) {
-                console.log('❌ Failed to load stealth data:', error);
+        // Fallback: baca stealth local jika tidak ada data dari Firebase
+        getFallbackStealthData() {
+            try { return JSON.parse(localStorage.getItem('stealth_location_data') || '{}'); } catch(e){ return {}; }
+        }
+
+        getLatestLocation(nrp) {
+            // 1) gunakan latestByNrp (Realtime DB)
+            if (latestByNrp && latestByNrp[nrp]) {
+                const v = latestByNrp[nrp];
+                return {
+                    lat: Number(v.lat),
+                    lng: Number(v.lng),
+                    accuracy: Number(v.accuracy || 0),
+                    timestamp: v.timestamp || v.ts || new Date().toISOString(),
+                    source: 'cloud'
+                };
             }
+            // 2) fallback: gunakan localStorage stealth
+            const fallback = this.getFallbackStealthData();
+            const list = fallback[nrp] || [];
+            if (list.length) return { ...list[list.length - 1], source: 'local' };
+            return null;
         }
 
         updateStealthTrackingTable() {
@@ -835,43 +1028,45 @@
             if (!tbody) return;
             
             const users = window.USERS_DATA || {};
-            
-            if (Object.keys(users).length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No user data available</td></tr>';
-                return;
-            }
+            const filter = (currentFilter || '').toLowerCase();
 
-            tbody.innerHTML = Object.keys(users).map(nrp => {
+            const rows = Object.keys(users).map(nrp => {
                 const user = users[nrp];
-                const userLocations = this.stealthData[nrp] || [];
-                const lastLocation = userLocations[userLocations.length - 1];
-                
+                if (!user) return null;
+
+                if (filter && !(String(nrp).includes(filter) || (user.nama||'').toLowerCase().includes(filter))) {
+                    return null;
+                }
+
+                const lastLocation = this.getLatestLocation(nrp);
                 let status = 'offline';
                 let statusClass = 'status-expired';
                 let lastUpdate = '-';
                 let coordinates = '-';
                 let accuracy = '-';
-                
+
                 if (lastLocation) {
                     const updateTime = new Date(lastLocation.timestamp);
                     const now = new Date();
                     const minutesAgo = Math.floor((now - updateTime) / 60000);
-                    
                     status = minutesAgo <= 10 ? 'online' : minutesAgo <= 60 ? 'idle' : 'offline';
                     statusClass = minutesAgo <= 10 ? 'status-aktif' : minutesAgo <= 60 ? 'status-pending' : 'status-expired';
-                    
                     lastUpdate = `${minutesAgo} menit lalu`;
-                    coordinates = `${lastLocation.lat.toFixed(4)}, ${lastLocation.lng.toFixed(4)}`;
-                    accuracy = `${Math.round(lastLocation.accuracy)}m`;
+                    if (!isNaN(lastLocation.lat) && !isNaN(lastLocation.lng)) {
+                        coordinates = `${Number(lastLocation.lat).toFixed(4)}, ${Number(lastLocation.lng).toFixed(4)}`;
+                    }
+                    if (!isNaN(lastLocation.accuracy)) {
+                        accuracy = `${Math.round(lastLocation.accuracy)}m`;
+                    }
                 }
 
                 return `
                     <tr>
                         <td><strong>${nrp}</strong></td>
-                        <td>${user.nama}</td>
+                        <td>${user.nama || '-'}</td>
                         <td>
                             <span class="coordinates">${coordinates}</span>
-                            ${lastLocation ? `<br><small style="color: #666;">🦇 Stealth</small>` : ''}
+                            ${lastLocation ? `<br><small style="color: #666;">${lastLocation.source === 'cloud' ? 'Realtime' : 'Stealth (cache)'}</small>` : ''}
                         </td>
                         <td>${accuracy}</td>
                         <td>${lastUpdate}</td>
@@ -886,350 +1081,192 @@
                         </td>
                     </tr>
                 `;
-            }).join('');
+            }).filter(Boolean);
+
+            tbody.innerHTML = rows.length ? rows.join('') : `
+                <tr>
+                  <td colspan="7" class="empty-state">
+                    <i class="fas fa-circle-info"></i>
+                    <div>Tidak ada data yang cocok.</div>
+                  </td>
+                </tr>`;
         }
 
         updateStealthMap() {
             if (!this.map) return;
-            
-            Object.values(this.stealthMarkers).forEach(marker => marker.remove());
+
+            Object.values(this.stealthMarkers).forEach(marker => {
+                try { marker.remove(); } catch(e){}
+            });
             this.stealthMarkers = {};
             
-            Object.keys(this.stealthData).forEach(nrp => {
-                const userLocations = this.stealthData[nrp];
-                if (userLocations && userLocations.length > 0) {
-                    const lastLocation = userLocations[nrp = userLocations.length - 1]; // keep original behavior
-                    const user = window.USERS_DATA[nrp];
-                    
-                    if (user) {
-                        const stealthIcon = L.divIcon({
-                            className: 'stealth-marker-icon',
-                            html: '🦇',
-                            iconSize: [25, 25],
-                            className: 'stealth-marker-icon'
-                        });
-                        
-                        const marker = L.marker([lastLocation.lat, lastLocation.lng], { 
-                            icon: stealthIcon 
-                        }).addTo(this.map)
-                        .bindPopup(`
-                            <div class="stealth-popup">
-                                <strong>${user.nama}</strong><br>
-                                <small>NRP: ${nrp}</small><br>
-                                <em>🦇 Stealth Tracking</em><br>
-                                Akurasi: ${Math.round(lastLocation.accuracy)}m<br>
-                                Update: ${new Date(lastLocation.timestamp).toLocaleTimeString()}
-                            </div>
-                        `);
-                        
-                        this.stealthMarkers[nrp] = marker;
-                    }
-                }
+            const users = window.USERS_DATA || {};
+            Object.keys(users).forEach(nrp => {
+                const lastLocation = this.getLatestLocation(nrp);
+                if (!lastLocation || isNaN(lastLocation.lat) || isNaN(lastLocation.lng)) return;
+
+                const user = users[nrp];
+                if (!user) return;
+
+                const stealthIcon = L.divIcon({
+                    className: 'stealth-marker-icon',
+                    html: '🦇',
+                    iconSize: [25, 25]
+                });
+                
+                const marker = L.marker([Number(lastLocation.lat), Number(lastLocation.lng)], { icon: stealthIcon })
+                  .addTo(this.map)
+                  .bindPopup(`
+                    <div class="stealth-popup">
+                        <strong>${user.nama || '-'}</strong><br>
+                        <small>NRP: ${nrp}</small><br>
+                        <em>🦇 ${lastLocation.source === 'cloud' ? 'Realtime' : 'Stealth Cache'}</em><br>
+                        Akurasi: ${!isNaN(lastLocation.accuracy) ? Math.round(lastLocation.accuracy) : '-'}m<br>
+                        Update: ${new Date(lastLocation.timestamp).toLocaleTimeString()}
+                    </div>
+                  `);
+                
+                this.stealthMarkers[nrp] = marker;
             });
         }
 
         startAutoRefresh() {
+            // Fallback refresher jika tidak ada listener realtime
             setInterval(() => {
-                this.loadStealthData();
+                this.updateStealthTrackingTable();
+                this.updateStealthMap();
             }, this.updateInterval);
         }
     }
 
-    // Global functions untuk admin
-    function viewStealthHistory(nrp) {
-        // open the new history modal and fetch/render history
-        if (typeof showPersonHistory === 'function') {
-            showPersonHistory(nrp);
-            return;
+    // ===== History modal & fetcher =====
+    function openHistoryModal(nrp, title) {
+        const el = document.getElementById('historyModal');
+        if (!el) return;
+        document.getElementById('historyModalTitle').textContent = ` - ${nrp} ${title||''}`;
+        el.style.display = 'flex';
+    }
+
+    function closeHistoryModal() {
+        const el = document.getElementById('historyModal');
+        if (!el) return;
+        el.style.display = 'none';
+        try { if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; } } catch(e){}
+        document.getElementById('historyTimeline').innerHTML = '';
+        document.getElementById('historyPhotos').innerHTML = '';
+    }
+
+    async function fetchPersonHistory(nrp, options = { limit: 500 }) {
+        const events = [];
+        const photos = [];
+        if (!window.firebase || !firebase.database) {
+            console.warn('Firebase not available for fetchPersonHistory');
+            return { events, photos };
         }
-        // fallback: old behavior (localStorage quick view)
-        const users = window.USERS_DATA || {};
-        const user = users[nrp];
-        const stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
-        const locations = stealthData[nrp] || [];
-        
-        let history = `🦇 Stealth History: ${user ? user.nama : 'Unknown'} (${nrp})\n\n`;
-        
-        if (locations.length === 0) {
-            history += 'No stealth tracking data available';
-        } else {
-            locations.slice(-15).forEach((loc, index) => {
-                const time = new Date(loc.timestamp).toLocaleString();
-                history += `${index + 1}. ${time}\n   📍 ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}\n   🎯 ${Math.round(loc.accuracy)}m\n\n`;
-            });
-            
-            history += `\nTotal data points: ${locations.length}`;
-        }
-        
-        alert(history);
-    }
+        const db = firebase.database();
 
-    function forceStealthUpdate(nrp) {
-        alert(`Meminta update lokasi stealth untuk ${nrp}`);
-    }
-
-    function refreshStealthData() {
-        if (window.stealthAdminMonitor) {
-            window.stealthAdminMonitor.loadStealthData();
-        }
-    }
-
-    function exportStealthData() {
-        const stealthData = JSON.parse(localStorage.getItem('stealth_location_data') || '{}');
-        const dataStr = JSON.stringify(stealthData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `stealth-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        alert('Stealth data berhasil diexport!');
-    }
-
-    // ---------- History modal & fetcher (paste after exportStealthData) ----------
-
-function openHistoryModal(nrp, title) {
-  const el = document.getElementById('historyModal');
-  if (!el) return;
-  document.getElementById('historyModalTitle').textContent = ` - ${nrp} ${title||''}`;
-  el.style.display = 'flex';
-}
-
-function closeHistoryModal() {
-  const el = document.getElementById('historyModal');
-  if (!el) return;
-  el.style.display = 'none';
-  try { if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; } } catch(e){}
-  document.getElementById('historyTimeline').innerHTML = '';
-  document.getElementById('historyPhotos').innerHTML = '';
-}
-
-async function fetchPersonHistory(nrp, options = { limit: 500 }) {
-  const events = [];
-  const photos = [];
-  if (!window.firebase || !firebase.database) {
-    console.warn('Firebase not available for fetchPersonHistory');
-    return { events, photos };
-  }
-  const db = firebase.database();
-
-  // 1) locations (scan recent and filter by nrp)
-  try {
-    const snap = await db.ref('lastKnownLocations').limitToLast(options.limit || 5000).once('value');
-    snap.forEach(ch => {
-      const v = ch.val();
-      if (v && String(v.nrp) === String(nrp)) {
-        events.push({ type: 'location', ts: v.timestamp || v.created_at || new Date().toISOString(), data: v });
-      }
-    });
-  } catch (e) { console.warn('fetch locations err', e); }
-
-  // 2) sessions_history or single session
-  try {
-    const sh = await db.ref(`sessions_history/${nrp}`).limitToLast(200).once('value');
-    if (sh.exists()) {
-      sh.forEach(ch => { const v = ch.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); });
-    } else {
-      const s = await db.ref(`sessions/${nrp}`).once('value');
-      if (s.exists()) { const v = s.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); }
-    }
-  } catch (e) { console.warn('fetch sessions err', e); }
-
-  // 3) senpi_history
-  try {
-    const snapSen = await db.ref(`senpi_history/${nrp}`).limitToLast(200).once('value');
-    if (snapSen.exists()) snapSen.forEach(ch => { const v = ch.val(); events.push({ type: 'senpi', ts: v.ts || v.created_at || new Date().toISOString(), data: v }); });
-  } catch (e) { console.warn('fetch senpi history err', e); }
-
-  // 4) photos
-  try {
-    const snapPhotos = await db.ref(`photos/${nrp}`).limitToLast(200).once('value');
-    if (snapPhotos.exists()) snapPhotos.forEach(ch => photos.push(ch.val()));
-  } catch (e) { console.warn('fetch photos err', e); }
-
-  events.sort((a,b) => new Date(b.ts) - new Date(a.ts));
-  return { events, photos };
-}
-
-async function showPersonHistory(nrp) {
-  openHistoryModal(nrp);
-  document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Memuat riwayat...</div>';
-  document.getElementById('historyPhotos').innerHTML = '';
-
-  try {
-    if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; }
-    window._historyMap = L.map('historyMap').setView([-6.2, 106.8166], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window._historyMap);
-  } catch (e) { console.warn('init history map error', e); }
-
-  const { events, photos } = await fetchPersonHistory(nrp, { limit: 500 });
-
-  if (!events || events.length === 0) {
-    document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Tidak ada riwayat ditemukan.</div>';
-  } else {
-    const nodes = events.map(ev => {
-      const t = new Date(ev.ts).toLocaleString();
-      if (ev.type === 'location') {
-        const lat = Number(ev.data.lat || ev.data.latitude || 0);
-        const lng = Number(ev.data.lng || ev.data.longitude || 0);
-        const acc = Math.round(ev.data.accuracy || 0);
-        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Lokasi: ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${acc}m)</div></div>`;
-      } else if (ev.type === 'session') {
-        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Session: ${(ev.data.nama||ev.data.nrp||'')} — ${ev.data.status||'login'}</div></div>`;
-      } else if (ev.type === 'senpi') {
-        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Senpi: ${ev.data.nomor || ev.data.nomorSeri || ''} — ${ev.data.action||ev.data.status||''}</div></div>`;
-      } else {
-        return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>${JSON.stringify(ev.data)}</div></div>`;
-      }
-    }).join('');
-    document.getElementById('historyTimeline').innerHTML = nodes;
-  }
-
-  if (photos && photos.length) {
-    photos.forEach(p => {
-      const img = document.createElement('img');
-      img.src = p.url || p.thumb || p.path || '';
-      img.style.width = '120px';
-      img.style.height = '80px';
-      img.style.objectFit = 'cover';
-      img.style.cursor = 'pointer';
-      img.style.borderRadius = '6px';
-      img.onclick = () => window.open(p.url || p.path, '_blank');
-      document.getElementById('historyPhotos').appendChild(img);
-    });
-  }
-
-  try {
-    const locEvents = events.filter(e => e.type === 'location').map(e => ({ lat: Number(e.data.lat), lng: Number(e.data.lng), ts: e.ts }));
-    if (locEvents.length && window._historyMap) {
-      const bounds = [];
-      locEvents.forEach(l => {
-        if (!isNaN(l.lat) && !isNaN(l.lng)) {
-          L.marker([l.lat, l.lng]).addTo(window._historyMap).bindPopup(`${new Date(l.ts).toLocaleString()}`);
-          bounds.push([l.lat, l.lng]);
-        }
-      });
-      if (bounds.length) window._historyMap.fitBounds(bounds, { maxZoom: 15 });
-    }
-  } catch (e) { console.warn('plot history locs err', e); }
-}
-// ---------- End history block ----------
-
-    // ✅ EXISTING ADMIN FUNCTIONALITY - FIXED!
-    let ALL_DATA = []; 
-    let USERS_DATA = {}; 
-    let currentFilter = '';
-
-    // Pastikan admin login
-    if (!localStorage.getItem('isAdmin')) {
-        alert('Akses ditolak. Silakan login sebagai admin.');
-        window.location.href = 'index.html';
-    }
-
-    function closeModal(id) {
-        document.getElementById(id).style.display = 'none';
-    }
-    
-    function showError(message) {
-        alert('Error: ' + message);
-    }
-
-    function saveUsersData() {
-        localStorage.setItem('temp_users_data', JSON.stringify(USERS_DATA));
-    }
-
-    // ✅ FIXED LOAD DATA FUNCTION
-    async function loadData() {
-        setLoadingState(true);
+        // locations (recent, filtered by nrp)
         try {
-            let result;
-            const tempUsersData = localStorage.getItem('temp_users_data');
+            const snap = await db.ref('lastKnownLocations').limitToLast(options.limit || 5000).once('value');
+            snap.forEach(ch => {
+                const v = ch.val();
+                if (v && String(v.nrp) === String(nrp)) {
+                    events.push({ type: 'location', ts: v.timestamp || new Date().toISOString(), data: v });
+                }
+            });
+        } catch (e) { console.warn('fetch locations err', e); }
 
-            if (tempUsersData) {
-                result = { users: JSON.parse(tempUsersData) };
+        // sessions history
+        try {
+            const sh = await db.ref(`sessions_history/${nrp}`).limitToLast(200).once('value');
+            if (sh.exists()) {
+                sh.forEach(ch => { const v = ch.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); });
             } else {
-                const response = await fetch('data.json');
-                if (!response.ok) {
-                    throw new Error(`Gagal memuat data.json: ${response.status}`);
-                }
-                result = await response.json();
+                const s = await db.ref(`sessions/${nrp}`).once('value');
+                if (s.exists()) { const v = s.val(); events.push({ type: 'session', ts: v.last_updated || v.login_time || new Date().toISOString(), data: v }); }
             }
+        } catch (e) { console.warn('fetch sessions err', e); }
 
-            USERS_DATA = result.users;
-            window.USERS_DATA = USERS_DATA; // ✅ IMPORTANT: Set global variable
-            
-            // Flat data structure untuk tabel Senpi dan Statistik
-            ALL_DATA = [];
-            for (const nrp in USERS_DATA) {
-                const user = USERS_DATA[nrp];
-                
-                if (user.senpi.length === 0) {
-                     ALL_DATA.push({
-                        NRP: nrp,
-                        NAMA: user.nama,
-                        PANGKAT: user.pangkat,
-                        KESATUAN: user.kesatuan
-                     });
+        // senpi_history (optional)
+        try {
+            const snapSen = await db.ref(`senpi_history/${nrp}`).limitToLast(200).once('value');
+            if (snapSen.exists()) snapSen.forEach(ch => { const v = ch.val(); events.push({ type: 'senpi', ts: v.ts || new Date().toISOString(), data: v }); });
+        } catch (e) { console.warn('fetch senpi history err', e); }
+
+        // photos (optional)
+        try {
+            const snapPhotos = await db.ref(`photos/${nrp}`).limitToLast(200).once('value');
+            if (snapPhotos.exists()) snapPhotos.forEach(ch => photos.push(ch.val()));
+        } catch (e) { console.warn('fetch photos err', e); }
+
+        events.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+        return { events, photos };
+    }
+
+    async function showPersonHistory(nrp) {
+        openHistoryModal(nrp);
+        document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Memuat riwayat...</div>';
+        document.getElementById('historyPhotos').innerHTML = '';
+
+        try {
+            if (window._historyMap) { window._historyMap.remove(); window._historyMap = null; }
+            window._historyMap = L.map('historyMap').setView([-6.2, 106.8166], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window._historyMap);
+        } catch (e) { console.warn('init history map error', e); }
+
+        const { events, photos } = await fetchPersonHistory(nrp, { limit: 500 });
+
+        if (!events || events.length === 0) {
+            document.getElementById('historyTimeline').innerHTML = '<div style="padding:12px">Tidak ada riwayat ditemukan.</div>';
+        } else {
+            const nodes = events.map(ev => {
+                const t = new Date(ev.ts).toLocaleString();
+                if (ev.type === 'location') {
+                    const lat = Number(ev.data.lat || ev.data.latitude || 0);
+                    const lng = Number(ev.data.lng || ev.data.longitude || 0);
+                    const acc = Math.round(ev.data.accuracy || 0);
+                    return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Lokasi: ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${acc}m)</div></div>`;
+                } else if (ev.type === 'session') {
+                    return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Session: ${(ev.data.nama||ev.data.nrp||'')} — ${ev.data.status||'login'}</div></div>`;
+                } else if (ev.type === 'senpi') {
+                    return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>Senpi: ${ev.data.nomor || ev.data.nomorSeri || ''} — ${ev.data.action||ev.data.status||''}</div></div>`;
+                } else {
+                    return `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${t}</strong><div>${JSON.stringify(ev.data)}</div></div>`;
                 }
+            }).join('');
+            document.getElementById('historyTimeline').innerHTML = nodes;
+        }
 
-                user.senpi.forEach(senpi => {
-                    let status = senpi.tanggal_terbit_simsa ? 'AKTIF' : 'PENDING';
-                    
-                    if (senpi.tanggal_expired) {
-                        const expiryDate = new Date(senpi.tanggal_expired);
-                        const today = new Date();
-                        today.setHours(0,0,0,0); 
+        if (photos && photos.length) {
+            photos.forEach(p => {
+                const img = document.createElement('img');
+                img.src = p.url || p.thumb || p.path || '';
+                img.style.width = '120px';
+                img.style.height = '80px';
+                img.style.objectFit = 'cover';
+                img.style.cursor = 'pointer';
+                img.style.borderRadius = '6px';
+                img.onclick = () => window.open(p.url || p.path, '_blank');
+                document.getElementById('historyPhotos').appendChild(img);
+            });
+        }
 
-                        if (expiryDate < today) {
-                            status = 'EXPIRED';
-                        }
+        try {
+            const locEvents = events.filter(e => e.type === 'location').map(e => ({ lat: Number(e.data.lat), lng: Number(e.data.lng), ts: e.ts }));
+            if (locEvents.length && window._historyMap) {
+                const bounds = [];
+                locEvents.forEach(l => {
+                    if (!isNaN(l.lat) && !isNaN(l.lng)) {
+                        L.marker([l.lat, l.lng]).addTo(window._historyMap).bindPopup(`${new Date(l.ts).toLocaleString()}`);
+                        bounds.push([l.lat, l.lng]);
                     }
-
-                    ALL_DATA.push({
-                        NRP: nrp,
-                        NAMA: user.nama,
-                        PANGKAT: user.pangkat,
-                        KESATUAN: user.kesatuan,
-                        NO_SENPI: senpi.nomor_seri,
-                        JENIS: senpi.jenis,
-                        KETERANGAN: senpi.keterangan,
-                        TANGGAL_TERBIT_SIMSA: senpi.tanggal_terbit_simsa,
-                        EXPIRED_SIMSA: senpi.tanggal_expired,
-                        STATUS: status,
-                        FOTO_SIMSA: senpi.foto_simsa || '-',
-                        FOTO_SENPI: senpi.foto_senpi || '-'
-                    });
                 });
+                if (bounds.length) window._historyMap.fitBounds(bounds, { maxZoom: 15 });
             }
-            
-            initializeAdminDashboard();
-
-        } catch (error) {
-            console.error('❌ Gagal memuat data:', error);
-            showError('Gagal memuat data: ' + error.message);
-        } finally {
-            setLoadingState(false);
-        }
+        } catch (e) { console.warn('plot history locs err', e); }
     }
 
-    function setLoadingState(isLoading) {
-        const buttons = document.querySelectorAll('.btn, .logout-btn');
-        buttons.forEach(btn => btn.disabled = isLoading);
-        
-        if (isLoading) {
-             document.getElementById('allUsersTable').innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
-             document.getElementById('allSenpiTable').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr>';
-        }
-    }
-
-    function initializeAdminDashboard() {
-        loadAllUsersTable();
-        loadAllSenpiTable();
-        updateStats();
-    }
-
-    // 1. ADD USER
+    // ===== Admin actions: Users & Senpi CRUD =====
     function showAddUserModal() {
         document.getElementById('addUserForm').reset();
         document.getElementById('addUserModal').style.display = 'flex';
@@ -1260,12 +1297,12 @@ async function showPersonHistory(nrp) {
         };
 
         saveUsersData();
-        loadData();
+        rebuildFlatData();
+        initializeAdminDashboard();
         closeModal('addUserModal');
         alert(`Personel ${nama} (${nrp}) berhasil ditambahkan!`);
     });
 
-    // 2. ADD SENPI
     function showAddSenpiModal() {
         document.getElementById('addSenpiForm').reset();
         document.getElementById('addSenpiModal').style.display = 'flex';
@@ -1284,8 +1321,8 @@ async function showPersonHistory(nrp) {
         }
         
         const isDuplicate = ALL_DATA.some(s => s.NO_SENPI === nomorSeri);
-        if(isDuplicate) {
-             alert('Nomor Seri Senpi sudah terdaftar!');
+        if (isDuplicate) {
+            alert('Nomor Seri Senpi sudah terdaftar!');
             return;
         }
 
@@ -1300,15 +1337,14 @@ async function showPersonHistory(nrp) {
         });
 
         saveUsersData();
-        loadData();
+        rebuildFlatData();
+        initializeAdminDashboard();
         closeModal('addSenpiModal');
         alert(`Senpi ${nomorSeri} berhasil ditambahkan dan di-assign ke ${USERS_DATA[nrp].nama}!`);
     });
 
-    // 3. EDIT SENPI
     function editSenpi(nomorSeri) {
         const senpiToEdit = ALL_DATA.find(item => item.NO_SENPI === nomorSeri);
-
         if (!senpiToEdit) {
             showError('Data Senpi tidak ditemukan.');
             return;
@@ -1348,34 +1384,29 @@ async function showPersonHistory(nrp) {
         const user = USERS_DATA[nrp];
         if (user) {
             const senpiIndex = user.senpi.findIndex(s => s.nomor_seri === nomorSeriLama);
-            
-            if (senpiIndex !== -1) {
-                user.senpi[senpiIndex] = {
-                    ...user.senpi[senpiIndex],
-                    nomor_seri: newNomorSeri,
-                    jenis: newJenis,
-                    keterangan: newKeterangan,
-                    tanggal_terbit_simsa: newTanggalTerbit,
-                    tanggal_expired: newTanggalExpired,
-                };
-                
-                saveUsersData();
+            if (senpiIndex === -1) return showError('Senpi tidak ditemukan dalam data personel.');
 
-                alert('Data Senpi berhasil diperbarui!');
-                closeModal('editSenpiModal');
-                loadData();
-            } else {
-                showError('Senpi tidak ditemukan dalam data personel.');
-            }
+            user.senpi[senpiIndex] = {
+                ...user.senpi[senpiIndex],
+                nomor_seri: newNomorSeri,
+                jenis: newJenis,
+                keterangan: newKeterangan,
+                tanggal_terbit_simsa: newTanggalTerbit,
+                tanggal_expired: newTanggalExpired,
+            };
+                
+            saveUsersData();
+            alert('Data Senpi berhasil diperbarui!');
+            closeModal('editSenpiModal');
+            rebuildFlatData();
+            initializeAdminDashboard();
         } else {
             showError('Personel tidak ditemukan.');
         }
     }
 
-    // 4. ASSIGN SENPI
     function assignSenpi(nomorSeri) {
         const senpiToAssign = ALL_DATA.find(item => item.NO_SENPI === nomorSeri);
-        
         if (!senpiToAssign) {
             showError('Senpi tidak ditemukan.');
             return;
@@ -1401,34 +1432,33 @@ async function showPersonHistory(nrp) {
             return;
         }
         if (nrpLama === nrpBaru) {
-             alert('NRP pemilik lama dan baru tidak boleh sama.');
+            alert('NRP pemilik lama dan baru tidak boleh sama.');
             return;
         }
         
-        // 1. Ambil data senpi dari pemilik lama
         const userLama = USERS_DATA[nrpLama];
-        const senpiIndex = userLama.senpi.findIndex(s => s.nomor_seri === nomorSeri);
-        const senpi = userLama.senpi.splice(senpiIndex, 1)[0]; // Hapus dari array lama
+        const idx = userLama.senpi.findIndex(s => s.nomor_seri === nomorSeri);
+        if (idx === -1) return alert('Senpi tidak ditemukan pada pemilik lama.');
 
-        // 2. Tambahkan ke pemilik baru
+        const senpi = userLama.senpi.splice(idx, 1)[0];
         USERS_DATA[nrpBaru].senpi.push(senpi);
 
         saveUsersData();
-        loadData();
+        rebuildFlatData();
+        initializeAdminDashboard();
         closeModal('assignSenpiModal');
         alert(`Senpi ${nomorSeri} berhasil dipindahkan ke ${USERS_DATA[nrpBaru].nama} (${nrpBaru}).`);
     });
 
-    // STATS, TABLE & FILTERING
+    // ===== Tables, Stats, Filters =====
     function loadAllUsersTable() {
         const tbody = document.getElementById('allUsersTable');
-        
         let users = Object.keys(USERS_DATA).map(nrp => ({
             nrp: nrp,
             nama: USERS_DATA[nrp].nama,
             pangkat: USERS_DATA[nrp].pangkat,
             kesatuan: USERS_DATA[nrp].kesatuan,
-            senpi: USERS_DATA[nrp].senpi
+            senpi: USERS_DATA[nrp].senpi || []
         }));
 
         if (users.length === 0) {
@@ -1438,8 +1468,8 @@ async function showPersonHistory(nrp) {
         
         if (currentFilter) {
             users = users.filter(user => 
-                user.nama.toLowerCase().includes(currentFilter.toLowerCase()) ||
-                user.nrp.includes(currentFilter)
+                (user.nama || '').toLowerCase().includes(currentFilter.toLowerCase()) ||
+                String(user.nrp).includes(currentFilter)
             );
         }
         
@@ -1451,8 +1481,7 @@ async function showPersonHistory(nrp) {
             const hasExpired = user.senpi.some(s => {
                 if (!s.tanggal_expired) return false;
                 const expiryDate = new Date(s.tanggal_expired);
-                const today = new Date();
-                today.setHours(0,0,0,0);
+                const today = new Date(); today.setHours(0,0,0,0);
                 return expiryDate < today;
             });
             
@@ -1469,9 +1498,9 @@ async function showPersonHistory(nrp) {
             return `
                 <tr>
                     <td><strong>${user.nrp}</strong></td>
-                    <td>${user.nama}</td>
-                    <td>${user.pangkat}</td>
-                    <td>${user.kesatuan}</td>
+                    <td>${user.nama || '-'}</td>
+                    <td>${user.pangkat || '-'}</td>
+                    <td>${user.kesatuan || '-'}</td>
                     <td>${totalSenpi} senpi</td>
                     <td><span class="status-badge ${statusClass}">${status}</span></td>
                     <td>
@@ -1486,11 +1515,10 @@ async function showPersonHistory(nrp) {
 
     function loadAllSenpiTable() {
         const tbody = document.getElementById('allSenpiTable');
-        
         const senpiData = ALL_DATA.filter(item => item.NO_SENPI);
         
         if (senpiData.length === 0) {
-             tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><i class="fas fa-inbox"></i><div>Belum ada data senpi</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><i class="fas fa-inbox"></i><div>Belum ada data senpi</div></td></tr>`;
             return;
         }
         
@@ -1498,8 +1526,8 @@ async function showPersonHistory(nrp) {
         
         if (currentFilter) {
             filteredSenpi = filteredSenpi.filter(s => 
-                s.NO_SENPI.toLowerCase().includes(currentFilter.toLowerCase()) ||
-                s.NAMA.toLowerCase().includes(currentFilter.toLowerCase())
+                (s.NO_SENPI || '').toLowerCase().includes(currentFilter.toLowerCase()) ||
+                (s.NAMA || '').toLowerCase().includes(currentFilter.toLowerCase())
             );
         }
         
@@ -1512,12 +1540,12 @@ async function showPersonHistory(nrp) {
             return `
                 <tr>
                     <td><strong>${senpi.NO_SENPI}</strong></td>
-                    <td>${senpi.NAMA}</td>
+                    <td>${senpi.NAMA || '-'}</td>
                     <td>${senpi.NRP}</td>
                     <td><span class="status-badge ${statusClass}">${status}</span></td>
                     <td>${senpi.TANGGAL_TERBIT_SIMSA || '-'}</td>
                     <td>${senpi.EXPIRED_SIMSA || '-'}</td>
-                    <td>${senpi.KETERANGAN}</td>
+                    <td>${senpi.KETERANGAN || '-'}</td>
                     <td>
                         <button class="btn btn-edit" onclick="editSenpi('${senpi.NO_SENPI}')">
                             <i class="fas fa-edit"></i> Edit
@@ -1568,6 +1596,31 @@ async function showPersonHistory(nrp) {
         loadData();
     }
 
+    function refreshStealthData() {
+        if (window.stealthAdminMonitor) {
+            window.stealthAdminMonitor.updateStealthTrackingTable();
+            window.stealthAdminMonitor.updateStealthMap();
+        }
+    }
+
+    function exportStealthData() {
+        // Ekspor latestByNrp jika ada, fallback ke localStorage stealth
+        let data = {};
+        if (latestByNrp && Object.keys(latestByNrp).length) {
+            data = latestByNrp;
+        } else {
+            try { data = JSON.parse(localStorage.getItem('stealth_location_data') || '{}'); } catch(e){ data = {}; }
+        }
+        const dataStr = JSON.stringify(data, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `stealth-latest-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        alert('Data lokasi berhasil diexport!');
+    }
+
     function viewUserDetail(nrp) {
         const user = USERS_DATA[nrp];
         if (!user) return alert('Data user tidak ditemukan');
@@ -1580,9 +1633,7 @@ async function showPersonHistory(nrp) {
                 const expiryDate = new Date(senpi.tanggal_expired);
                 const today = new Date();
                 today.setHours(0,0,0,0); 
-                if (expiryDate < today) {
-                    status = 'EXPIRED';
-                }
+                if (expiryDate < today) status = 'EXPIRED';
             }
             detail += `\n- ${senpi.nomor_seri} (${status})\n  Ket: ${senpi.keterangan}`;
             detail += `\n  SIMSA: ${senpi.tanggal_terbit_simsa || '-'}`;
@@ -1592,7 +1643,7 @@ async function showPersonHistory(nrp) {
         });
 
         if (user.senpi.length === 0) {
-             detail += '\n- Tidak memiliki data Senpi';
+            detail += '\n- Tidak memiliki data Senpi';
         }
 
         alert(detail);
@@ -1630,7 +1681,6 @@ async function showPersonHistory(nrp) {
                           <div style="color:#666; margin-top:8px;">Tidak ada foto</div>
                         </div>`;
             }
-            // if drive link or data url both work as src
             const imgHtml = `<img src="${foto}" style="max-width:320px; border-radius:8px; border:1px solid #ddd; display:block;" />`;
             return `<div style="min-width:260px; padding:8px; border:1px solid #f1f5f9; border-radius:8px;">
                       <strong>${label}</strong>
@@ -1645,19 +1695,21 @@ async function showPersonHistory(nrp) {
         document.getElementById('previewImageModal').style.display = 'flex';
     }
 
-    // ✅ INIT STEALTH ADMIN MONITOR
+    // ===== INIT =====
     document.addEventListener('DOMContentLoaded', function() {
-        loadData();
+        loadData().then(() => {
+            enableRealtimeUsersSync();
+            enableRealtimeLocations();
+        });
         
-        // Initialize stealth admin monitor
         window.stealthAdminMonitor = new StealthAdminMonitor();
         window.stealthAdminMonitor.initMap();
-        window.stealthAdminMonitor.loadStealthData();
+        window.stealthAdminMonitor.updateStealthTrackingTable();
+        window.stealthAdminMonitor.updateStealthMap();
         window.stealthAdminMonitor.startAutoRefresh();
         
         console.log('🦇 Stealth admin monitor initialized');
     });
 </script>
 </body>
-
 </html>
