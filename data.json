@@ -1,8 +1,4 @@
 {
-  "admin": {
-    "nrp": "00030948",
-    "password": "Asuedan00@"
-  },
   "users": {
     "67050063": {
       "nama": "BAMBANG SUHARDI RAHMAN",
@@ -327,5 +323,341 @@
         }
       ]
     }
+  },
+  "temp_users_data": {
+    "67050063": {
+      "nama": "BAMBANG SUHARDI RAHMAN",
+      "pangkat": "IPTU",
+      "kesatuan": "PAMA RESIMEN",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186032",
+          "jenis": "Senpi Pendek",
+          "keterangan": "HILANG DALAM PROSES TGR",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "76020335": {
+      "nama": "NUNO ALVES MENDONSA",
+      "pangkat": "IPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H183841",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "85070311": {
+      "nama": "ISNAN YULIANTO",
+      "pangkat": "IPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184824",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "80110165": {
+      "nama": "ENDRA NASUTION",
+      "pangkat": "AIPTU",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184471",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "73050397": {
+      "nama": "SUARDI TAHERONG",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H185813",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "84101275": {
+      "nama": "ANDRIAS",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184831",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "77040149": {
+      "nama": "IRVAN FERROSTAL",
+      "pangkat": "AIPTU",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H183849",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "79070649": {
+      "nama": "YULI HENDRI",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184808",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "81020105": {
+      "nama": "BRAJA MUSTI",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184665",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "83121015": {
+      "nama": "DEDEK MUSYADI",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184875",
+          "jenis": "Senpi Pendek",
+          "keterangan": "STANDBY BATALYON",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "98080824": {
+      "nama": "FARID PUTRA PERWIRANEGARA",
+      "pangkat": "BRIPTU",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186021",
+          "jenis": "Senpi Pendek",
+          "keterangan": "WALPRI",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "78011003": {
+      "nama": "HENDRI SETIAWAN",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186027",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "76120155": {
+      "nama": "JUFRI LAHAMUTU",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H185863",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "79071464": {
+      "nama": "RIHAT MIYANTO",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184832",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "80020307": {
+      "nama": "SUWITOPO",
+      "pangkat": "AIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H184472",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "93050156": {
+      "nama": "SAFARUDDIN KOLOBE",
+      "pangkat": "BRIGADIR",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186035",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "98010720": {
+      "nama": "ABDUL RAHIM",
+      "pangkat": "BHARATU",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186037",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "00050380": {
+      "nama": "MAHESA WIRATAMA, S.H.",
+      "pangkat": "BRIPTU",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186030",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    },
+    "03011154": {
+      "nama": "YOHANES JUAN SAPUTRA",
+      "pangkat": "BRIPDA",
+      "kesatuan": "YON A",
+      "status": "Aktif",
+      "senpi": [
+        {
+          "nomor_seri": "H186034",
+          "jenis": "Senpi Pendek",
+          "keterangan": "YANKAM",
+          "tanggal_terbit_simsa": "",
+          "tanggal_expired": "",
+          "foto_simsa": "",
+          "foto_senpi": ""
+        }
+      ]
+    }
+  },
+  "admins": {
+    "00030948": {
+      "password": "Asuedan00@",
+      "nama": "Super Admin",
+      "role": "super"
+    }
+  },
+  "admin_config": {
+    "nrp": "00030948",
+    "password": "Asuedan00@"
   }
 }
