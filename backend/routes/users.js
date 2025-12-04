@@ -1,21 +1,22 @@
-// routes/users.js - User management endpoints
+﻿// routes/users.js - User management endpoints
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const db = require('../db');
 
 // Get all users (with their senpi)
 router.get('/', async (req, res) => {
   try {
+    const pool = req.app.get('db');
+    
     // Get all users
-    const usersResult = await db.query(
+    const usersResult = await pool.query(
       `SELECT nrp, nama, pangkat, kesatuan, status, created_at 
        FROM users 
        ORDER BY nama`
     );
 
     // Get all senpi grouped by NRP
-    const senpiResult = await db.query(
+    const senpiResult = await pool.query(
       `SELECT * FROM senpi ORDER BY nrp, nomor_seri`
     );
 
@@ -58,8 +59,9 @@ router.get('/', async (req, res) => {
 router.get('/:nrp', async (req, res) => {
   try {
     const { nrp } = req.params;
+    const pool = req.app.get('db');
 
-    const userResult = await db.query(
+    const userResult = await pool.query(
       'SELECT * FROM users WHERE nrp = $1',
       [nrp]
     );
@@ -68,7 +70,7 @@ router.get('/:nrp', async (req, res) => {
       return res.status(404).json({ error: 'User tidak ditemukan' });
     }
 
-    const senpiResult = await db.query(
+    const senpiResult = await pool.query(
       'SELECT * FROM senpi WHERE nrp = $1',
       [nrp]
     );
@@ -98,8 +100,10 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'NRP dan nama harus diisi' });
     }
 
+    const pool = req.app.get('db');
+
     // Check if NRP already exists
-    const existing = await db.query('SELECT nrp FROM users WHERE nrp = $1', [nrp]);
+    const existing = await pool.query('SELECT nrp FROM users WHERE nrp = $1', [nrp]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'NRP sudah terdaftar' });
     }
@@ -109,7 +113,7 @@ router.post('/', async (req, res) => {
       await bcrypt.hash(password, 10) : 
       await bcrypt.hash(nrp, 10);
 
-    const result = await db.query(
+    const result = await pool.query(
       `INSERT INTO users (nrp, nama, pangkat, kesatuan, password_hash, status)
        VALUES ($1, $2, $3, $4, $5, 'Aktif')
        RETURNING *`,
@@ -133,7 +137,9 @@ router.put('/:nrp', async (req, res) => {
     const { nrp } = req.params;
     const { nama, pangkat, kesatuan, status } = req.body;
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `UPDATE users 
        SET nama = COALESCE($1, nama),
            pangkat = COALESCE($2, pangkat),
@@ -163,8 +169,9 @@ router.put('/:nrp', async (req, res) => {
 router.delete('/:nrp', async (req, res) => {
   try {
     const { nrp } = req.params;
+    const pool = req.app.get('db');
 
-    const result = await db.query(
+    const result = await pool.query(
       'DELETE FROM users WHERE nrp = $1 RETURNING *',
       [nrp]
     );
@@ -187,10 +194,11 @@ router.delete('/:nrp', async (req, res) => {
 // Bulk update - replace entire users data (Firebase migration compatibility)
 router.post('/bulk-update', async (req, res) => {
   try {
-    const { users } = req.body;
+    const usersData = req.body;
+    const pool = req.app.get('db');
 
     // Start transaction
-    const client = await db.connect();
+    const client = await pool.connect();
     
     try {
       await client.query('BEGIN');

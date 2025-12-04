@@ -9,7 +9,7 @@
   // Configuration - ganti dengan URL Railway kamu setelah deploy
   const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000/api'
-    : 'https://your-railway-app.up.railway.app/api'; // GANTI INI setelah deploy!
+    : 'https://track-senpi-production.up.railway.app/api'; // Railway Production URL
 
   let authToken = localStorage.getItem('auth_token') || null;
   let wsConnection = null;

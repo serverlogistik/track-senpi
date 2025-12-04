@@ -1,7 +1,6 @@
-// routes/location.js - Location tracking endpoints
+﻿// routes/location.js - Location tracking endpoints
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
 
 // Save location
 router.post('/', async (req, res) => {
@@ -12,7 +11,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'NRP, latitude, dan longitude harus diisi' });
     }
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `INSERT INTO locations (nrp, latitude, longitude, accuracy, meta)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
@@ -50,7 +51,9 @@ router.post('/', async (req, res) => {
 // Get latest locations for all users
 router.get('/latest', async (req, res) => {
   try {
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `SELECT * FROM latest_locations ORDER BY timestamp DESC`
     );
 
@@ -80,7 +83,9 @@ router.get('/history/:nrp', async (req, res) => {
     const { nrp } = req.params;
     const { limit = 100 } = req.query;
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `SELECT * FROM locations 
        WHERE nrp = $1 
        ORDER BY timestamp DESC 
@@ -101,7 +106,9 @@ router.get('/recent', async (req, res) => {
   try {
     const { limit = 500 } = req.query;
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `SELECT l.*, u.nama, u.pangkat 
        FROM locations l
        LEFT JOIN users u ON l.nrp = u.nrp
@@ -123,7 +130,9 @@ router.delete('/cleanup', async (req, res) => {
   try {
     const { days = 30 } = req.query;
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `DELETE FROM locations 
        WHERE timestamp < NOW() - INTERVAL '${parseInt(days)} days'
        RETURNING id`

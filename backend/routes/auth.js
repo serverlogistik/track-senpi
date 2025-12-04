@@ -1,9 +1,8 @@
-// routes/auth.js - Authentication endpoints
+﻿// routes/auth.js - Authentication endpoints
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 
@@ -15,9 +14,11 @@ router.post('/login', async (req, res) => {
     if (!nrp || !password) {
       return res.status(400).json({ error: 'NRP dan password harus diisi' });
     }
+
+    const pool = req.app.get('db');
     
     // Get user
-    const userResult = await db.query(
+    const userResult = await pool.query(
       'SELECT * FROM users WHERE nrp = $1',
       [nrp]
     );

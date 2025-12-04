@@ -1,10 +1,9 @@
-// routes/upload.js - File upload endpoints
+﻿// routes/upload.js - File upload endpoints
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const db = require('../db');
 
 // Create uploads directory if not exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -51,7 +50,8 @@ router.post('/single', upload.single('file'), async (req, res) => {
 
     // Optional: save to database
     if (req.body.nrp && req.body.type) {
-      await db.query(
+      const pool = req.app.get('db');
+      await pool.query(
         `INSERT INTO photos (nrp, url, type) VALUES ($1, $2, $3)`,
         [req.body.nrp, fileUrl, req.body.type]
       );
@@ -110,7 +110,8 @@ router.delete('/:filename', async (req, res) => {
       fs.unlinkSync(filePath);
       
       // Optional: remove from database
-      await db.query(
+      const pool = req.app.get('db');
+      await pool.query(
         `DELETE FROM photos WHERE url = $1`,
         [`/uploads/${filename}`]
       );

@@ -1,12 +1,13 @@
-// routes/senpi.js - Senpi management endpoints
+﻿// routes/senpi.js - Senpi management endpoints
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
 
 // Get all senpi with user details
 router.get('/', async (req, res) => {
   try {
-    const result = await db.query(
+    const pool = req.app.get('db');
+    
+    const result = await pool.query(
       `SELECT * FROM senpi_with_users ORDER BY nomor_seri`
     );
 
@@ -22,8 +23,9 @@ router.get('/', async (req, res) => {
 router.get('/user/:nrp', async (req, res) => {
   try {
     const { nrp } = req.params;
+    const pool = req.app.get('db');
 
-    const result = await db.query(
+    const result = await pool.query(
       'SELECT * FROM senpi WHERE nrp = $1',
       [nrp]
     );
@@ -54,8 +56,10 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Nomor seri dan NRP harus diisi' });
     }
 
+    const pool = req.app.get('db');
+
     // Check if nomor_seri already exists
-    const existing = await db.query(
+    const existing = await pool.query(
       'SELECT nomor_seri FROM senpi WHERE nomor_seri = $1',
       [nomor_seri]
     );
@@ -64,7 +68,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Nomor seri sudah terdaftar' });
     }
 
-    const result = await db.query(
+    const result = await pool.query(
       `INSERT INTO senpi (nomor_seri, nrp, jenis, keterangan, tanggal_terbit_simsa, tanggal_expired, foto_simsa, foto_senpi)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
@@ -115,7 +119,9 @@ router.put('/:nomor_seri', async (req, res) => {
       foto_senpi
     } = req.body;
 
-    const result = await db.query(
+    const pool = req.app.get('db');
+
+    const result = await pool.query(
       `UPDATE senpi 
        SET jenis = COALESCE($1, jenis),
            keterangan = COALESCE($2, keterangan),
@@ -164,13 +170,15 @@ router.post('/:nomor_seri/assign', async (req, res) => {
       return res.status(400).json({ error: 'NRP baru harus diisi' });
     }
 
+    const pool = req.app.get('db');
+
     // Check if new NRP exists
-    const userCheck = await db.query('SELECT nrp FROM users WHERE nrp = $1', [new_nrp]);
+    const userCheck = await pool.query('SELECT nrp FROM users WHERE nrp = $1', [new_nrp]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'NRP tujuan tidak ditemukan' });
     }
 
-    const result = await db.query(
+    const result = await pool.query(
       `UPDATE senpi SET nrp = $1 WHERE nomor_seri = $2 RETURNING *`,
       [new_nrp, nomor_seri]
     );
@@ -180,7 +188,7 @@ router.post('/:nomor_seri/assign', async (req, res) => {
     }
 
     // Log the transfer
-    await db.query(
+    await pool.query(
       `INSERT INTO admin_logs (action, details)
        VALUES ('senpi_transfer', $1)`,
       [JSON.stringify({ nomor_seri, new_nrp, timestamp: new Date() })]
@@ -201,8 +209,9 @@ router.post('/:nomor_seri/assign', async (req, res) => {
 router.delete('/:nomor_seri', async (req, res) => {
   try {
     const { nomor_seri } = req.params;
+    const pool = req.app.get('db');
 
-    const result = await db.query(
+    const result = await pool.query(
       'DELETE FROM senpi WHERE nomor_seri = $1 RETURNING *',
       [nomor_seri]
     );
