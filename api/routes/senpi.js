@@ -79,16 +79,8 @@ router.post('/', async (req, res) => {
       ]
     );
 
-    // Broadcast update via WebSocket
-    const wss = req.app.get('wss');
-    wss.clients.forEach(client => {
-      if (client.readyState === 1) {
-        client.send(JSON.stringify({
-          type: 'senpi_created',
-          data: result.rows[0]
-        }));
-      }
-    });
+    // Note: WebSocket not supported in Vercel serverless
+    // Use polling or external service for real-time updates
 
     res.json({
       success: true,
@@ -131,16 +123,8 @@ router.put('/:nomor_seri', async (req, res) => {
       return res.status(404).json({ error: 'Senpi tidak ditemukan' });
     }
 
-    // Broadcast update via WebSocket
-    const wss = req.app.get('wss');
-    wss.clients.forEach(client => {
-      if (client.readyState === 1) {
-        client.send(JSON.stringify({
-          type: 'senpi_updated',
-          data: result.rows[0]
-        }));
-      }
-    });
+    // Note: WebSocket not supported in Vercel serverless
+    // Use polling from frontend for real-time updates
 
     res.json({
       success: true,

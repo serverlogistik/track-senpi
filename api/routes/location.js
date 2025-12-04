@@ -19,22 +19,8 @@ router.post('/', async (req, res) => {
       [nrp, latitude, longitude, accuracy || 0, meta ? JSON.stringify(meta) : null]
     );
 
-    // Broadcast location update via WebSocket
-    const wss = req.app.get('wss');
-    wss.clients.forEach(client => {
-      if (client.readyState === 1) {
-        client.send(JSON.stringify({
-          type: 'location_update',
-          data: {
-            nrp,
-            latitude,
-            longitude,
-            accuracy,
-            timestamp: result.rows[0].timestamp
-          }
-        }));
-      }
-    });
+    // Note: WebSocket not supported in Vercel serverless
+    // Frontend will poll /api/location/latest for updates
 
     res.json({
       success: true,
