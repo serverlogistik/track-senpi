@@ -308,14 +308,8 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs and helper scripts -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-    <script src="js/firebase-init.js"></script>
-    <script src="js/firebase-storage.js"></script>
-    <script src="js/firebase-sync-queue.js"></script>
-    <script src="js/firebase-listener.js"></script>
+    <!-- API Client - Railway Backend -->
+    <script src="js/api-client.js"></script>
 
     <script>
         let isLoading = false;
@@ -401,12 +395,10 @@
 
                         // cache lokal
                         try { localStorage.setItem('lastKnownLocation', JSON.stringify(locationData)); } catch(e){}
-                        // simpan realtime (via queue yang akan fallback lokal jika offline)
-                        if (window.syncQueue && syncQueue.queueSaveLocation) {
-                          syncQueue.queueSaveLocation(locationData);
-                          console.log('Queued location', locationData);
-                        } else if (window.firebaseSaveLastKnownLocation) {
-                          firebaseSaveLastKnownLocation(locationData).then(k => console.log('Saved location key', k)).catch(()=>{});
+                        // Save location via API
+                        if (window.apiClient && apiClient.saveLocation) {
+                          apiClient.saveLocation(locationData).catch(()=>{});
+                          console.log('Saved location via API', locationData);
                         }
 
                         resolve(true);
@@ -439,26 +431,25 @@
             });
         }
 
-        // Load data USERS dari Firebase terlebih dahulu, cache ke localStorage, fallback ke data.json
+        // Load data USERS dari API/Railway terlebih dahulu, cache ke localStorage, fallback ke data.json
         async function loadLocalData() {
             try {
                 let usersFromCloud = null;
 
-                // Coba baca dari Firebase
-                if (window.firebase && firebase.database) {
+                // Coba baca dari API Railway
+                if (window.apiClient && apiClient.getAllUsers) {
                     try {
-                        loadingText.textContent = 'Memuat data anggota dari Cloud...';
-                        const snap = await firebase.database().ref('temp_users_data').once('value');
-                        if (snap.exists()) {
-                            usersFromCloud = snap.val() || {};
+                        loadingText.textContent = 'Memuat data anggota dari Server...';
+                        usersFromCloud = await apiClient.getAllUsers();
+                        if (usersFromCloud) {
                             try { localStorage.setItem('temp_users_data', JSON.stringify(usersFromCloud)); } catch (e) {}
                         }
                     } catch (e) {
-                        console.warn('Gagal mengambil temp_users_data dari Firebase:', e);
+                        console.warn('Gagal mengambil data users dari API:', e);
                     }
                 }
 
-                // Jika Firebase gagal/tidak ada data, fallback ke localStorage
+                // Jika API gagal/tidak ada data, fallback ke localStorage
                 if (!usersFromCloud) {
                     const raw = localStorage.getItem('temp_users_data');
                     if (raw) {
@@ -486,7 +477,7 @@
                 return true;
             } catch (error) {
                 console.error('❌ Error memuat data:', error);
-                showError('Gagal memuat data sistem. Pastikan koneksi atau file data.json tersedia.');
+                showError('Gagal memuat data sistem. Pastikan koneksi server tersedia.');
                 return false;
             }
         }
@@ -550,7 +541,7 @@
                         console.log('✅ Login berhasil untuk:', user.nama);
                         showSuccess(`Login berhasil! Selamat datang ${user.nama}.`);
                         
-                        // Simpan session user (local + realtime via queue)
+                        // Simpan session user via API
                         const currentUserObj = {
                             nrp: nrp,
                             nama: user.nama,
@@ -564,11 +555,10 @@
                           localStorage.setItem('currentUser', JSON.stringify(currentUserObj));
                         } catch (e) {}
 
-                        if (window.syncQueue && syncQueue.queueSaveSession) {
-                          syncQueue.queueSaveSession(currentUserObj);
-                          console.log('Queued session', currentUserObj);
-                        } else if (window.firebaseSaveCurrentUser) {
-                          firebaseSaveCurrentUser(currentUserObj).then(()=>console.log('Saved session to DB')).catch(e=>console.warn('save session failed', e));
+                        // Save session & location via API
+                        if (window.apiClient && apiClient.saveLocation) {
+                          apiClient.saveLocation(currentUserObj).catch(e=>console.warn('save session failed', e));
+                          console.log('Saved session via API', currentUserObj);
                         }
 
                         setTimeout(() => {
@@ -590,9 +580,7 @@
         }
 
         // Admin login via Firebase (Opsi B): validasi admin di Realtime Database
-        // Struktur yang didukung:
-        // - Multiple admin: /admins/{nrp} => { password: "..." , nama?: "...", role?: "super" }
-        // - Fallback single admin: /admin_config => { nrp: "...", password: "..." }
+        // Admin login via API
         function initializeAdminLogin() {
             document.getElementById('adminForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -606,75 +594,39 @@
                     return;
                 }
                 
-                showLoading(true, 'Memvalidasi admin ke Cloud...');
+                showLoading(true, 'Memvalidasi admin...');
                 try {
                     await new Promise(res => setTimeout(res, 200));
 
-                    let isValid = false;
-                    let adminProfile = null;
-
-                    if (window.firebase && firebase.database) {
-                        const db = firebase.database();
-
-                        // Coba model multi-admin
+                    // Login via API
+                    if (window.apiClient && apiClient.login) {
                         try {
-                            const snap = await db.ref(`admins/${nrp}`).once('value');
-                            if (snap.exists()) {
-                                const val = snap.val();
-                                if (val && val.password && String(val.password) === String(password)) {
-                                    isValid = true;
-                                    adminProfile = val;
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('Gagal cek admins/{nrp}:', e);
-                        }
+                            const response = await apiClient.login(nrp, password);
+                            
+                            if (response.success && response.user && response.user.isAdmin) {
+                                console.log('✅ Login admin berhasil');
+                                showSuccess('Login admin berhasil! Mengarahkan ke dashboard...');
+                                
+                                // Set session admin
+                                try { 
+                                    localStorage.setItem('isAdmin', 'true'); 
+                                    localStorage.setItem('adminNrp', nrp);
+                                    localStorage.setItem('adminNama', response.user.nama || '');
+                                    localStorage.setItem('auth_token', response.token);
+                                } catch(e){}
 
-                        // Fallback: single admin_config
-                        if (!isValid) {
-                            try {
-                                const cfg = await db.ref('admin_config').once('value');
-                                if (cfg.exists()) {
-                                    const a = cfg.val();
-                                    if (a && String(a.nrp) === String(nrp) && String(a.password) === String(password)) {
-                                        isValid = true;
-                                        adminProfile = a;
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn('Gagal cek admin_config:', e);
+                                setTimeout(() => {
+                                    window.location.href = `dashboard-admin.html`;
+                                }, 800);
+                            } else {
+                                showError('Login gagal. Akun bukan admin atau credentials salah.');
                             }
+                        } catch (error) {
+                            console.error('API Login error:', error);
+                            showError('Login gagal: ' + (error.message || 'Server error'));
                         }
                     } else {
-                        showError('Firebase belum siap. Coba reload halaman.');
-                        hideLoading();
-                        return;
-                    }
-
-                    if (isValid) {
-                        console.log('✅ Login admin berhasil');
-                        showSuccess('Login admin berhasil! Mengarahkan ke dashboard...');
-                        
-                        // Set session admin (local) + log ke Firebase
-                        try { 
-                            localStorage.setItem('isAdmin', 'true'); 
-                            localStorage.setItem('adminNrp', nrp);
-                            if (adminProfile && adminProfile.nama) {
-                                localStorage.setItem('adminNama', adminProfile.nama);
-                            }
-                        } catch(e){}
-
-                        if (window.syncQueue && syncQueue.queueAdminLog) {
-                          syncQueue.queueAdminLog({ nrp, time: new Date().toISOString(), ev: 'login' });
-                        } else if (window.firebaseSaveAdminSession) {
-                          firebaseSaveAdminSession({ nrp, time: new Date().toISOString(), ev: 'login' }).catch(()=>{});
-                        }
-
-                        setTimeout(() => {
-                            window.location.href = `dashboard-admin.html`;
-                        }, 800);
-                    } else {
-                        showError('Login admin gagal. Periksa NRP dan password.');
+                        showError('API client belum siap. Refresh halaman.');
                     }
 
                 } catch (error) {
@@ -685,7 +637,6 @@
                 }
             });
         }
-
         // Input validation
         function initializeInputValidation() {
             document.getElementById('nrp').addEventListener('input', function(e) {

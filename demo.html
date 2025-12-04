@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Sistem Tracking Senpi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .demo-container {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #dc2626;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+
+        p {
+            color: #64748b;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .demo-links {
+            display: grid;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .demo-btn {
+            background: #dc2626;
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-decoration: none;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .demo-btn:hover {
+            background: #b91c1c;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(220, 38, 38, 0.3);
+        }
+
+        .note {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin-top: 2rem;
+            text-align: left;
+            border-radius: 8px;
+        }
+
+        .note strong {
+            color: #d97706;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <h1>🎯 Track Senpi - Demo Mode</h1>
+        <p>Pilih halaman yang ingin kamu lihat tampilannya:</p>
+
+        <div class="demo-links">
+            <a href="index.html" class="demo-btn" onclick="setupDemo('index')">
+                🔐 Login Page
+            </a>
+            <a href="#" class="demo-btn" onclick="openAdminDemo(); return false;">
+                👨‍💼 Admin Dashboard (Demo Data)
+            </a>
+            <a href="#" class="demo-btn" onclick="openAnggotaDemo(); return false;">
+                👤 Dashboard Anggota (Demo Data)
+            </a>
+            <a href="verify.html" class="demo-btn">
+                ✅ Verification Page
+            </a>
+            <a href="clocks.html" class="demo-btn">
+                🕐 Clocks Page
+            </a>
+        </div>
+
+        <div class="note">
+            <strong>📝 Note:</strong> 
+            <p style="margin: 0.5rem 0 0 0; color: #78716c;">
+                Dashboard akan load data dari <code>data.json</code>. 
+                Untuk full functionality dengan API, ikuti panduan di <code>TESTING.md</code>.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function openAdminDemo() {
+            // Set fake admin session
+            localStorage.setItem('isAdmin', 'true');
+            localStorage.setItem('adminNrp', '00000001');
+            localStorage.setItem('adminNama', 'Super Admin (DEMO)');
+            
+            // Open admin dashboard
+            window.open('dashboard-admin.html', '_blank');
+            
+            alert('✅ Demo admin session created!\n\nDashboard akan buka di tab baru dengan data dari data.json');
+        }
+
+        function openAnggotaDemo() {
+            // Load data.json first
+            fetch('data.json')
+                .then(res => res.json())
+                .then(data => {
+                    // Get first user
+                    const users = data.users;
+                    const firstNrp = Object.keys(users)[0];
+                    const firstUser = users[firstNrp];
+                    
+                    // Set fake member session
+                    const currentUser = {
+                        nrp: firstNrp,
+                        nama: firstUser.nama,
+                        pangkat: firstUser.pangkat,
+                        kesatuan: firstUser.kesatuan,
+                        location_access: true,
+                        login_time: new Date().toISOString()
+                    };
+                    
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    // Open member dashboard
+                    window.open(`dashboard-anggota.html?nrp=${firstNrp}`, '_blank');
+                    
+                    alert(`✅ Demo member session created!\n\nUser: ${firstUser.nama}\nNRP: ${firstNrp}\n\nDashboard akan buka di tab baru.`);
+                })
+                .catch(err => {
+                    alert('❌ Error loading data.json: ' + err.message);
+                });
+        }
+
+        function setupDemo(page) {
+            localStorage.clear();
+            sessionStorage.clear();
+        }
+    </script>
+</body>
+</html>

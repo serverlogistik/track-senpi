@@ -1,0 +1,33 @@
+{
+  "name": "track-senpi",
+  "version": "2.0.0",
+  "description": "Sistem Tracking Senpi POLDA METRO JAYA - Railway Backend Edition",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "install-backend": "cd backend && npm install",
+    "test-api": "node test-api.js",
+    "deploy": "cd backend && railway up",
+    "update-url": "bash update-api-url.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/serverlogistik/track-senpi.git"
+  },
+  "keywords": [
+    "tracking",
+    "senpi",
+    "polri",
+    "railway",
+    "postgresql",
+    "express",
+    "websocket"
+  ],
+  "author": "serverlogistik",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/serverlogistik/track-senpi/issues"
+  },
+  "homepage": "https://github.com/serverlogistik/track-senpi#readme"
+}
