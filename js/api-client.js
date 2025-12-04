@@ -6,10 +6,10 @@
   if (window._apiClientInitialized) return;
   window._apiClientInitialized = true;
 
-  // Configuration - ganti dengan URL Railway kamu setelah deploy
+  // Configuration - URL otomatis detect environment
   const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000/api'
-    : 'https://track-senpi-production.up.railway.app/api'; // Railway Production URL
+    : 'https://track-senpi.vercel.app/api'; // Vercel Production URL (ganti setelah deploy)
 
   let authToken = localStorage.getItem('auth_token') || null;
   let wsConnection = null;

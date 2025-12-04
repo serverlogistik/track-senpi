@@ -1,33 +1,33 @@
-{
-  "name": "track-senpi",
-  "version": "2.0.0",
-  "description": "Sistem Tracking Senpi POLDA METRO JAYA - Railway Backend Edition",
-  "main": "backend/server.js",
+﻿{
+  "name": "track-senpi-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Track Senpi - Railway Deployment",
+  "main": "server.js",
   "scripts": {
-    "start": "cd backend && npm start",
-    "dev": "cd backend && npm run dev",
-    "install-backend": "cd backend && npm install",
-    "test-api": "node test-api.js",
-    "deploy": "cd backend && railway up",
-    "update-url": "bash update-api-url.sh"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/serverlogistik/track-senpi.git"
-  },
-  "keywords": [
-    "tracking",
-    "senpi",
-    "polri",
-    "railway",
-    "postgresql",
-    "express",
-    "websocket"
-  ],
+  "keywords": ["express", "postgresql", "railway", "tracking"],
   "author": "serverlogistik",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/serverlogistik/track-senpi/issues"
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "cloudinary": "^1.41.0",
+    "ws": "^8.14.2",
+    "helmet": "^7.1.0",
+    "compression": "^1.7.4",
+    "express-rate-limit": "^7.1.5"
   },
-  "homepage": "https://github.com/serverlogistik/track-senpi#readme"
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
