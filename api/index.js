@@ -5,13 +5,21 @@ const helmet = require('helmet');
 
 const app = express();
 
-// Middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+// CORS - Must be BEFORE other middleware
 app.use(cors({
   origin: '*',
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Other Middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
