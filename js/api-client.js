@@ -301,10 +301,10 @@
     loadQueue: () => []
   };
 
-  // Listener compatibility
+  // Listener compatibility dengan REALTIME POLLING
   window.firebaseListeners = {
     subscribeTempUsers: (callback) => {
-      // Poll every 10 seconds for updates
+      // Poll every 5 seconds for updates (faster realtime)
       const interval = setInterval(async () => {
         try {
           const users = await getAllUsers();
@@ -312,34 +312,54 @@
         } catch (error) {
           console.error('Poll users error:', error);
         }
-      }, 10000);
+      }, 5000);
+      
+      // Initial fetch
+      getAllUsers().then(callback).catch(console.error);
       
       return () => clearInterval(interval);
     },
     subscribeLastByNrp: (callback) => {
-      // Use WebSocket for real-time updates
-      connectWebSocket((data) => {
-        if (data.type === 'location_update') {
-          // Fetch latest locations
-          getLatestLocations().then(callback).catch(console.error);
+      // Poll every 3 seconds for realtime location updates
+      const interval = setInterval(async () => {
+        try {
+          const locations = await getLatestLocations();
+          callback(locations);
+        } catch (error) {
+          console.error('Poll locations error:', error);
         }
-      });
+      }, 3000);
       
       // Initial fetch
       getLatestLocations().then(callback).catch(console.error);
       
-      return () => disconnectWebSocket();
+      return () => clearInterval(interval);
     },
     subscribeLastLocations: (limit, callback) => {
-      connectWebSocket((data) => {
-        if (data.type === 'location_update') {
-          callback(data.data.nrp, data.data);
+      // Poll every 2 seconds for very realtime tracking
+      const interval = setInterval(async () => {
+        try {
+          const locations = await getLatestLocations();
+          // Convert to array and trigger callback for each
+          Object.keys(locations).forEach(nrp => {
+            callback(nrp, locations[nrp]);
+          });
+        } catch (error) {
+          console.error('Poll locations error:', error);
         }
-      });
+      }, 2000);
       
-      return () => disconnectWebSocket();
+      // Initial fetch
+      getLatestLocations().then(locs => {
+        Object.keys(locs).forEach(nrp => callback(nrp, locs[nrp]));
+      }).catch(console.error);
+      
+      return () => clearInterval(interval);
     },
-    unsubscribeAll: disconnectWebSocket
+    unsubscribeAll: () => {
+      // Cleanup intervals (handled by return functions above)
+      console.log('Unsubscribed from all listeners');
+    }
   };
 
   // Export API client

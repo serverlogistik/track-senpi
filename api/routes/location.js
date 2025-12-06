@@ -33,12 +33,23 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get latest locations for all users
+// Get latest locations for all users (REALTIME POLLING)
 router.get('/latest', async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT * FROM latest_locations ORDER BY timestamp DESC`
-    );
+    const { since } = req.query;
+    
+    let query = `SELECT * FROM latest_locations`;
+    let params = [];
+    
+    // Support incremental updates
+    if (since) {
+      query += ` WHERE timestamp > $1`;
+      params.push(since);
+    }
+    
+    query += ` ORDER BY timestamp DESC`;
+    
+    const result = await db.query(query, params);
 
     // Format as object keyed by NRP (Firebase-compatible)
     const locations = {};
@@ -52,6 +63,7 @@ router.get('/latest', async (req, res) => {
       };
     });
 
+    res.setHeader('Cache-Control', 'no-cache');
     res.json(locations);
 
   } catch (error) {
@@ -82,6 +94,35 @@ router.get('/history/:nrp', async (req, res) => {
   }
 });
 
+// Get location by NRP (single user)
+router.get('/:nrp', async (req, res) => {
+  try {
+    const { nrp } = req.params;
+    
+    const result = await db.query(
+      `SELECT * FROM latest_locations WHERE nrp = $1`,
+      [nrp]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Lokasi tidak ditemukan' });
+    }
+
+    const loc = result.rows[0];
+    res.json({
+      lat: parseFloat(loc.latitude),
+      lng: parseFloat(loc.longitude),
+      accuracy: parseFloat(loc.accuracy),
+      timestamp: loc.timestamp,
+      meta: loc.meta
+    });
+
+  } catch (error) {
+    console.error('Get location error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all recent locations (for admin tracking)
 router.get('/recent', async (req, res) => {
   try {
@@ -96,6 +137,7 @@ router.get('/recent', async (req, res) => {
       [parseInt(limit)]
     );
 
+    res.setHeader('Cache-Control', 'no-cache');
     res.json(result.rows);
 
   } catch (error) {
