@@ -9,7 +9,7 @@
   // Configuration - URL otomatis detect environment
   const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000/api'
-    : 'https://track-senpi.vercel.app/api'; // Vercel Production URL (ganti setelah deploy)
+    : 'https://track-senpi-baru-j3wifdgjd-serverlogistiks-projects.vercel.app/api'; // Vercel Production URL
 
   let authToken = localStorage.getItem('auth_token') || null;
   let wsConnection = null;
